@@ -167,18 +167,9 @@ async function renderTemplate(templateId, slotTexts, outputFileName) {
 }
 
 renderTemplate(
-  3,
+  15,
   {
-    slot_1_text: "LAUNCH NEW FEATURE",
-    slot_2_text: "FIX OLD BUGS"
+    slot_1_text: "Email is still the best marketing channel"
   },
-  "output-two-buttons.png"
-);
-
-renderTemplate(
-  5,
-  {
-    slot_1_text: "WHEN THE CLIENT WANTS VIRAL CONTENT BY TOMORROW"
-  },
-  "output-woman-cat.png"
+  "output-man-standing-up.png"
 );
