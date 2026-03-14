@@ -174,3 +174,11 @@ renderTemplate(
   },
   "output-two-buttons.png"
 );
+
+renderTemplate(
+  4,
+  {
+    slot_1_text: "PINEAPPLE BELONGS ON PIZZA"
+  },
+  "output-change-my-mind.png"
+);
