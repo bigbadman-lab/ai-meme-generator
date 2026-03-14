@@ -176,9 +176,9 @@ renderTemplate(
 );
 
 renderTemplate(
-  4,
+  5,
   {
-    slot_1_text: "PINEAPPLE BELONGS ON PIZZA"
+    slot_1_text: "WHEN THE CLIENT WANTS VIRAL CONTENT BY TOMORROW"
   },
-  "output-change-my-mind.png"
+  "output-woman-cat.png"
 );
