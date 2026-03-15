@@ -1,7 +1,8 @@
 (globalThis.TURBOPACK_CHUNK_LISTS || (globalThis.TURBOPACK_CHUNK_LISTS = [])).push({
     script: typeof document === "object" ? document.currentScript : undefined,
     chunks: [
-  "static/chunks/466dc_next_dist_5df19ad6._.js"
+  "static/chunks/466dc_791ea9c5._.js",
+  "static/chunks/ai-meme-generator_4c15ff26._.js"
 ],
     source: "dynamic"
 });

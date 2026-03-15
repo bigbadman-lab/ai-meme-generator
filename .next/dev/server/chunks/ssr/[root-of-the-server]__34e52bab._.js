@@ -34,7 +34,7 @@ function MarketingPage() {
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
                         id: "hero-heading",
-                        className: "text-4xl md:text-5xl font-bold tracking-tight max-w-2xl",
+                        className: "text-4xl md:text-5xl font-bold tracking-tight max-w-2xl text-black",
                         children: "Turn your business into better memes"
                     }, void 0, false, {
                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -42,7 +42,7 @@ function MarketingPage() {
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                        className: "mt-4 text-lg text-white/70 max-w-xl",
+                        className: "mt-4 text-lg text-neutral-600 max-w-xl",
                         children: "AI-powered meme generation for brands. Create on-trend memes, add your promo context, and manage a library that stays on brand."
                     }, void 0, false, {
                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -54,7 +54,7 @@ function MarketingPage() {
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$react$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["default"], {
                                 href: "/signup",
-                                className: "inline-flex items-center justify-center rounded-md bg-white text-black px-6 py-3 font-medium hover:bg-white/90 transition-colors",
+                                className: "inline-flex items-center justify-center rounded-md bg-black text-white px-6 py-3 font-medium hover:bg-neutral-800 transition-colors",
                                 children: "Get started"
                             }, void 0, false, {
                                 fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -63,7 +63,7 @@ function MarketingPage() {
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$react$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["default"], {
                                 href: "/login",
-                                className: "inline-flex items-center justify-center rounded-md border border-white/30 text-white px-6 py-3 font-medium hover:bg-white/10 transition-colors",
+                                className: "inline-flex items-center justify-center rounded-md border border-neutral-400 text-black px-6 py-3 font-medium hover:bg-neutral-100 transition-colors",
                                 children: "Log in"
                             }, void 0, false, {
                                 fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -88,7 +88,7 @@ function MarketingPage() {
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
                         id: "gallery-heading",
-                        className: "text-2xl font-bold text-center",
+                        className: "text-2xl font-bold text-center text-black",
                         children: "Gallery"
                     }, void 0, false, {
                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -96,7 +96,7 @@ function MarketingPage() {
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                        className: "mt-2 text-center text-[var(--foreground-muted)] max-w-xl mx-auto",
+                        className: "mt-2 text-center text-neutral-600 max-w-xl mx-auto",
                         children: "Placeholder: meme gallery slider."
                     }, void 0, false, {
                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -106,7 +106,7 @@ function MarketingPage() {
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                         className: "mt-8 flex justify-center",
                         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
-                            className: "w-full max-w-4xl h-48 rounded-lg border border-dashed border-[var(--border)] bg-[var(--background-alt)] flex items-center justify-center text-[var(--foreground-muted)] text-sm",
+                            className: "w-full max-w-4xl h-48 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 flex items-center justify-center text-neutral-500 text-sm",
                             children: "Gallery slider content"
                         }, void 0, false, {
                             fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -130,7 +130,7 @@ function MarketingPage() {
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
                         id: "features-heading",
-                        className: "text-2xl font-bold text-center",
+                        className: "text-2xl font-bold text-center text-black",
                         children: "Features"
                     }, void 0, false, {
                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -141,10 +141,10 @@ function MarketingPage() {
                         className: "mt-8 max-w-4xl mx-auto grid gap-6 sm:grid-cols-3",
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("article", {
-                                className: "rounded-lg border border-[var(--border)] bg-[var(--background-alt)] p-6",
+                                className: "rounded-lg border border-neutral-200 bg-neutral-50 p-6",
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
-                                        className: "font-semibold text-lg",
+                                        className: "font-semibold text-lg text-black",
                                         children: "Generate memes fast"
                                     }, void 0, false, {
                                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -152,7 +152,7 @@ function MarketingPage() {
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                        className: "mt-2 text-sm text-[var(--foreground-muted)]",
+                                        className: "mt-2 text-sm text-neutral-600",
                                         children: "Pick a template, add your copy, and get a shareable meme in seconds."
                                     }, void 0, false, {
                                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -166,10 +166,10 @@ function MarketingPage() {
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("article", {
-                                className: "rounded-lg border border-[var(--border)] bg-[var(--background-alt)] p-6",
+                                className: "rounded-lg border border-neutral-200 bg-neutral-50 p-6",
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
-                                        className: "font-semibold text-lg",
+                                        className: "font-semibold text-lg text-black",
                                         children: "Add promo context"
                                     }, void 0, false, {
                                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -177,7 +177,7 @@ function MarketingPage() {
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                        className: "mt-2 text-sm text-[var(--foreground-muted)]",
+                                        className: "mt-2 text-sm text-neutral-600",
                                         children: "Layer in campaign messaging and CTAs so memes work for your marketing."
                                     }, void 0, false, {
                                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -191,10 +191,10 @@ function MarketingPage() {
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("article", {
-                                className: "rounded-lg border border-[var(--border)] bg-[var(--background-alt)] p-6",
+                                className: "rounded-lg border border-neutral-200 bg-neutral-50 p-6",
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
-                                        className: "font-semibold text-lg",
+                                        className: "font-semibold text-lg text-black",
                                         children: "Manage your meme library"
                                     }, void 0, false, {
                                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -202,7 +202,7 @@ function MarketingPage() {
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                                        className: "mt-2 text-sm text-[var(--foreground-muted)]",
+                                        className: "mt-2 text-sm text-neutral-600",
                                         children: "Organize, tag, and reuse memes across channels from one place."
                                     }, void 0, false, {
                                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -233,7 +233,7 @@ function MarketingPage() {
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
                         id: "founder-heading",
-                        className: "text-2xl font-bold text-center",
+                        className: "text-2xl font-bold text-center text-black",
                         children: "A note from our founder"
                     }, void 0, false, {
                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -241,7 +241,7 @@ function MarketingPage() {
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                        className: "mt-4 text-center text-[var(--foreground-muted)] max-w-2xl mx-auto",
+                        className: "mt-4 text-center text-neutral-600 max-w-2xl mx-auto",
                         children: "Placeholder: founder message or short personal note."
                     }, void 0, false, {
                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -260,7 +260,7 @@ function MarketingPage() {
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
                         id: "pricing-heading",
-                        className: "text-2xl font-bold text-center",
+                        className: "text-2xl font-bold text-center text-black",
                         children: "Pricing"
                     }, void 0, false, {
                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -268,7 +268,7 @@ function MarketingPage() {
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                        className: "mt-2 text-center text-[var(--foreground-muted)] max-w-xl mx-auto",
+                        className: "mt-2 text-center text-neutral-600 max-w-xl mx-auto",
                         children: "Placeholder: plans and pricing."
                     }, void 0, false, {
                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -287,7 +287,7 @@ function MarketingPage() {
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("h2", {
                         id: "faq-heading",
-                        className: "text-2xl font-bold text-center",
+                        className: "text-2xl font-bold text-center text-black",
                         children: "Frequently asked questions"
                     }, void 0, false, {
                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -295,7 +295,7 @@ function MarketingPage() {
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
-                        className: "mt-2 text-center text-[var(--foreground-muted)] max-w-xl mx-auto",
+                        className: "mt-2 text-center text-neutral-600 max-w-xl mx-auto",
                         children: "Placeholder: FAQ items."
                     }, void 0, false, {
                         fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -309,14 +309,14 @@ function MarketingPage() {
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("footer", {
-                className: "border-t border-[var(--border)] px-6 py-8 mt-auto",
+                className: "border-t border-neutral-200 px-6 py-8 mt-auto",
                 children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])("nav", {
-                    className: "max-w-4xl mx-auto flex flex-wrap gap-6 justify-center text-sm text-[var(--foreground-muted)]",
+                    className: "max-w-4xl mx-auto flex flex-wrap gap-6 justify-center text-sm text-neutral-600",
                     "aria-label": "Site footer",
                     children: [
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$react$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["default"], {
                             href: "/login",
-                            className: "hover:text-white transition-colors",
+                            className: "hover:text-black transition-colors",
                             children: "Log in"
                         }, void 0, false, {
                             fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
@@ -325,7 +325,7 @@ function MarketingPage() {
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$rsc$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$client$2f$app$2d$dir$2f$link$2e$react$2d$server$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["default"], {
                             href: "/signup",
-                            className: "hover:text-white transition-colors",
+                            className: "hover:text-black transition-colors",
                             children: "Sign up"
                         }, void 0, false, {
                             fileName: "[project]/ai-meme-generator/app/(marketing)/page.tsx",
