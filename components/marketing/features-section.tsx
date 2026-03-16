@@ -1,73 +1,81 @@
-import { FloatingNote } from "./floating-note";
+import { FramedSection } from "./framed-section";
 
-const FEATURES = [
+const STEPS = [
   {
-    title: "Brand-aware meme generation",
-    description: "AI that gets your tone. Create memes that fit your brand and campaign goals.",
-    accent: "white" as const,
+    number: "1",
+    title: "Know your brand",
+    description:
+      "We learn what your business does so every meme starts with real context.",
   },
   {
-    title: "Fast meme creation",
-    description: "Pick a template, add your copy, get a shareable meme in seconds—no design skills needed.",
-    accent: "white" as const,
+    number: "2",
+    title: "Watch the world",
+    description:
+      "Our system tracks trends, global events, and key dates to keep memes timely.",
   },
   {
-    title: "Reusable templates",
-    description: "Save and reuse your best formats. Keep launches and promos consistent.",
-    accent: "white" as const,
+    number: "3",
+    title: "Find the angle",
+    description:
+      "AI turns brand context and cultural moments into clever meme ideas.",
   },
   {
-    title: "Captions included",
-    description: "AI suggests captions and variations so you can ship to social faster.",
-    accent: "white" as const,
+    number: "4",
+    title: "Build the meme",
+    description:
+      "The right format and copy combine to generate the finished meme.",
   },
   {
-    title: "Business-friendly workflow",
-    description: "From draft to approval to library. Built for teams and campaigns.",
-    accent: "white" as const,
+    number: "5",
+    title: "Ready to post",
+    description:
+      "Memes and caption suggestions, ready for social.",
   },
-  {
-    title: "Content for launches & promos",
-    description: "Launch memes, promo cards, and social content from one place.",
-    accent: "white" as const,
-  },
-];
+] as const;
 
 export function FeaturesSection() {
   return (
-    <section
+    <FramedSection
+      variant="default"
+      backgroundVariant="features"
       id="features-heading"
-      className="scroll-mt-24 px-6 py-20 md:py-28"
       aria-labelledby="features-heading"
+      className="w-full"
     >
-      <div className="mx-auto max-w-5xl">
-        <h2
-          id="features-heading"
-          className="text-center text-2xl font-bold text-[var(--canvas-heading)] md:text-3xl"
-        >
-          Features
-        </h2>
-        <p className="mx-auto mt-2 max-w-xl text-center text-[var(--canvas-muted)]">
-          Everything you need to create and manage memes for your business.
-        </p>
-        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((f, i) => (
-            <FloatingNote
-              key={f.title}
-              accent={f.accent}
-              rotate={i % 4 === 0 ? 0 : i % 4 === 1 ? 1 : i % 4 === 2 ? -1 : 0}
-              className="p-6"
-            >
-              <h3 className="font-semibold text-[var(--canvas-heading)]">
-                {f.title}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--canvas-muted)]">
-                {f.description}
-              </p>
-            </FloatingNote>
+      <h2
+        id="features-heading"
+        className="text-center text-2xl font-bold text-stone-900 md:text-3xl"
+      >
+        Behind the memes
+      </h2>
+      <p className="marketing-copy mx-auto mt-2 max-w-xl text-center">
+        How our system turns brand context and
+        <br />
+        cultural moments into social-ready memes.
+      </p>
+      {/* Timeline layout – stacked on all devices */}
+      <div className="mx-auto mt-10 max-w-3xl sm:mt-12">
+        <div className="space-y-6">
+          {STEPS.map((step) => (
+            <div key={step.number} className="flex gap-4">
+              <div className="flex flex-col items-center">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-stone-300 bg-white text-xs font-semibold text-stone-900">
+                  {step.number}
+                </span>
+                <div className="mt-1 h-full w-px bg-stone-200" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-stone-900">
+                  {step.title}
+                </h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-stone-600">
+                  {step.description}
+                </p>
+              </div>
+            </div>
           ))}
         </div>
       </div>
-    </section>
+    </FramedSection>
   );
 }

@@ -1,92 +1,86 @@
 import Link from "next/link";
+import { FramedSection } from "./framed-section";
 import { FloatingNote } from "./floating-note";
 
 const PLANS = [
   {
-    name: "Starter",
-    description: "For small teams and one-off campaigns.",
-    price: "Free",
-    cta: "Get started",
+    name: "Free",
+    description: "1 meme per day for individuals getting started.",
+    price: "$0",
+    period: "/mo",
+    cta: "Get started free",
     href: "/signup",
     featured: false,
   },
   {
     name: "Pro",
-    description: "Unlimited memes, templates, and team seats.",
+    description: "Unlimited memes for teams who ship content daily.",
     price: "$29",
     period: "/mo",
     cta: "Start free trial",
     href: "/signup",
     featured: true,
   },
-  {
-    name: "Enterprise",
-    description: "Custom templates, SSO, and dedicated support.",
-    price: "Custom",
-    cta: "Contact sales",
-    href: "/signup",
-    featured: false,
-  },
 ];
 
 export function PricingSection() {
   return (
-    <section
+    <FramedSection
+      variant="default"
+      backgroundVariant="pricing"
       id="pricing-heading"
-      className="scroll-mt-24 px-6 py-20 md:py-28"
       aria-labelledby="pricing-heading"
+      className="w-full"
     >
-      <div className="mx-auto max-w-5xl">
-        <h2
-          id="pricing-heading"
-          className="text-center text-2xl font-bold text-[var(--canvas-heading)] md:text-3xl"
-        >
-          Pricing
-        </h2>
-        <p className="mx-auto mt-2 max-w-xl text-center text-[var(--canvas-muted)]">
-          Simple plans. No hidden fees.
-        </p>
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {PLANS.map((plan) => (
-            <FloatingNote
-              key={plan.name}
-              accent="white"
-              rotate={0}
-              className={`p-6 ${plan.featured ? "ring-2 ring-[var(--canvas-heading)]" : ""}`}
-            >
+      <h2
+        id="pricing-heading"
+        className="text-center text-2xl font-bold text-stone-900 md:text-3xl"
+      >
+        Pricing
+      </h2>
+      <p className="marketing-copy mx-auto mt-2 max-w-xl text-center">
+        Free gives you 1 meme per day. Pro unlocks unlimited memes.
+      </p>
+      <div className="mt-12 grid gap-6 md:grid-cols-2">
+        {PLANS.map((plan) => (
+          <FloatingNote
+            key={plan.name}
+            accent="white"
+            rotate={0}
+            className={`flex h-full flex-col p-6 md:p-8 ${
+              plan.featured ? "ring-2 ring-stone-900" : ""
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-lg font-semibold text-stone-900">
+                {plan.name}
+              </h3>
               {plan.featured && (
-                <span className="mb-3 inline-block rounded-full bg-[var(--canvas-heading)] px-3 py-1 text-xs font-medium text-white">
+                <span className="inline-flex items-center rounded-full bg-stone-900 px-3 py-1 text-[11px] font-medium !text-white">
                   Popular
                 </span>
               )}
-              <h3 className="font-semibold text-[var(--canvas-heading)]">
-                {plan.name}
-              </h3>
-              <p className="mt-1 text-sm text-[var(--canvas-muted)]">
-                {plan.description}
-              </p>
-              <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-2xl font-bold text-[var(--canvas-heading)]">
-                  {plan.price}
-                </span>
-                {plan.period && (
-                  <span className="text-[var(--canvas-muted)]">{plan.period}</span>
-                )}
-              </div>
-              <Link
-                href={plan.href}
-                className={`mt-6 block w-full rounded-xl py-3 text-center text-sm font-medium transition-colors ${
-                  plan.featured
-                    ? "bg-[var(--canvas-heading)] text-white hover:opacity-90"
-                    : "border border-[var(--canvas-border)] text-[var(--canvas-heading)] hover:bg-stone-50"
-                }`}
-              >
-                {plan.cta}
-              </Link>
-            </FloatingNote>
-          ))}
-        </div>
+            </div>
+            <p className="marketing-copy mt-2 text-sm">
+              {plan.description}
+            </p>
+            <div className="mt-6 flex items-baseline gap-1">
+              <span className="text-3xl font-bold text-stone-900">
+                {plan.price}
+              </span>
+              {plan.period && (
+                <span className="text-stone-500">{plan.period}</span>
+              )}
+            </div>
+            <Link
+              href={plan.href}
+              className="mt-8 block w-full rounded-full bg-stone-900 px-3 py-2.5 text-center text-sm font-medium !text-white shadow-sm hover:bg-stone-800 transition-colors font-display"
+            >
+              {plan.cta}
+            </Link>
+          </FloatingNote>
+        ))}
       </div>
-    </section>
+    </FramedSection>
   );
 }

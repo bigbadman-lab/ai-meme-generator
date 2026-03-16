@@ -199,12 +199,12 @@ function EngagementCard({ className }) {
                     children: "Engagement rising"
                 }, void 0, false, {
                     fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                    lineNumber: 48,
+                    lineNumber: 49,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                lineNumber: 47,
+                lineNumber: 48,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -218,14 +218,14 @@ function EngagementCard({ className }) {
                                 "When the brief says",
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("br", {}, void 0, false, {
                                     fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                                    lineNumber: 58,
+                                    lineNumber: 59,
                                     columnNumber: 13
                                 }, this),
                                 "“make it pop”"
                             ]
                         }, void 0, true, {
                             fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                            lineNumber: 56,
+                            lineNumber: 57,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -233,18 +233,18 @@ function EngagementCard({ className }) {
                             children: "— and you actually do"
                         }, void 0, false, {
                             fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                            lineNumber: 61,
+                            lineNumber: 62,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                    lineNumber: 55,
+                    lineNumber: 56,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                lineNumber: 54,
+                lineNumber: 55,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -252,7 +252,7 @@ function EngagementCard({ className }) {
                 children: "On-brand meme, ready for social. Reach and engagement in one asset."
             }, void 0, false, {
                 fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                lineNumber: 68,
+                lineNumber: 69,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -270,12 +270,12 @@ function EngagementCard({ className }) {
                                     "aria-hidden": true
                                 }, void 0, false, {
                                     fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                                    lineNumber: 90,
+                                    lineNumber: 91,
                                     columnNumber: 15
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                                lineNumber: 79,
+                                lineNumber: 80,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$components$2f$marketing$2f$count$2d$up$2e$tsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["CountUp"], {
@@ -285,7 +285,7 @@ function EngagementCard({ className }) {
                                 className: "text-sm font-semibold tabular-nums text-[var(--canvas-heading)]"
                             }, void 0, false, {
                                 fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                                lineNumber: 95,
+                                lineNumber: 96,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$ai$2d$meme$2d$generator$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -293,24 +293,24 @@ function EngagementCard({ className }) {
                                 children: label
                             }, void 0, false, {
                                 fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                                lineNumber: 101,
+                                lineNumber: 102,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, key, true, {
                         fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                        lineNumber: 75,
+                        lineNumber: 76,
                         columnNumber: 11
                     }, this))
             }, void 0, false, {
                 fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-                lineNumber: 73,
+                lineNumber: 74,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/ai-meme-generator/components/marketing/engagement-card.tsx",
-        lineNumber: 37,
+        lineNumber: 38,
         columnNumber: 5
     }, this);
 }

@@ -44,13 +44,6 @@ export function EngagementCard({ className }: { className?: string }) {
       )}
       aria-label="Social engagement preview"
     >
-      {/* Badge */}
-      <div className="mb-3 flex items-center justify-center">
-        <span className="rounded-full bg-[var(--canvas-accent-mint)] px-3 py-1 text-xs font-medium text-[var(--canvas-heading)]">
-          You just got Rickrolled.
-        </span>
-      </div>
-
       {/* Meme preview area - Tenor GIF embed */}
       <div className="overflow-hidden rounded-xl border border-[var(--canvas-border)] bg-stone-50 w-full aspect-[0.84375]">
         <div
@@ -74,7 +67,7 @@ export function EngagementCard({ className }: { className?: string }) {
 
       {/* Caption */}
       <p className="mt-2 text-xs text-[var(--canvas-muted)] line-clamp-2">
-        The meme has been used by <strong>Google</strong>, <strong>YouTube</strong>, <strong>Reddit</strong>, and countless brands.
+        Rickrolled has been used by <strong>Google</strong>, <strong>YouTube</strong>, <strong>Reddit</strong>, and countless brands.
       </p>
 
       {/* Metrics row */}

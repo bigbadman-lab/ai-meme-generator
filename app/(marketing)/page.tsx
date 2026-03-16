@@ -1,4 +1,4 @@
-import { CanvasShell } from "@/components/marketing/canvas-shell";
+import { PageShell } from "@/components/marketing/page-shell";
 import { HeroSection } from "@/components/marketing/hero-section";
 import { GallerySection } from "@/components/marketing/gallery-section";
 import { FeaturesSection } from "@/components/marketing/features-section";
@@ -19,7 +19,7 @@ import { FooterSection } from "@/components/marketing/footer-section";
  */
 export default function MarketingPage() {
   return (
-    <CanvasShell>
+    <PageShell>
       <HeroSection />
       <GallerySection />
       <FeaturesSection />
@@ -27,6 +27,6 @@ export default function MarketingPage() {
       <PricingSection />
       <FAQSection />
       <FooterSection />
-    </CanvasShell>
+    </PageShell>
   );
 }

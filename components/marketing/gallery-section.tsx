@@ -1,46 +1,51 @@
-import { FloatingNote } from "./floating-note";
+import { Radio, Zap, TrendingUp, Heart } from "lucide-react";
 
-const MOCK_ITEMS = [
-  { id: 1, label: "Template A" },
-  { id: 2, label: "Template B" },
-  { id: 3, label: "Template C" },
-  { id: 4, label: "Template D" },
-  { id: 5, label: "Template E" },
-  { id: 6, label: "Template F" },
-];
+const WHY_ITEMS = [
+  { icon: Radio, label: "Reach" },
+  { icon: Zap, label: "Speed" },
+  { icon: TrendingUp, label: "Relevance" },
+  { icon: Heart, label: "Engagement" },
+] as const;
 
 export function GallerySection() {
   return (
     <section
-      id="gallery"
-      className="scroll-mt-24 px-6 py-20 md:py-28"
-      aria-labelledby="gallery-heading"
+      id="why"
+      aria-labelledby="why-heading"
+      className="w-full px-4 py-16 sm:px-6 sm:py-20 md:px-8 md:py-24"
     >
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-4xl text-center">
         <h2
-          id="gallery-heading"
-          className="text-center text-2xl font-bold text-[var(--canvas-heading)] md:text-3xl"
+          id="why-heading"
+          className="text-3xl font-semibold tracking-tight text-stone-900 sm:text-4xl md:text-5xl"
         >
-          Gallery
+          The internet runs on memes.
+          <br />
+          <span className="font-extrabold text-stone-900 bg-sky-100/80 px-1.5 py-0.5 rounded">Brands</span> should too.
         </h2>
-        <p className="mx-auto mt-2 max-w-xl text-center text-[var(--canvas-muted)]">
-          Example memes from the engine—templates and styles you can use.
-        </p>
-        <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 md:gap-6">
-          {MOCK_ITEMS.map((item, i) => (
-            <FloatingNote
-              key={item.id}
-              accent="white"
-              rotate={i % 3 === 0 ? 0 : i % 3 === 1 ? 1 : -1}
-              className="aspect-[4/3] p-0 overflow-hidden"
-            >
-              <div className="flex h-full w-full items-center justify-center bg-stone-100 text-sm text-[var(--canvas-muted)]">
-                {item.label}
-              </div>
-            </FloatingNote>
-          ))}
-        </div>
+      </div>
+
+      <div className="mx-auto mt-12 grid max-w-4xl grid-cols-2 place-items-center gap-5 sm:mt-14 sm:gap-6 md:grid-cols-4 md:gap-6">
+        {WHY_ITEMS.map(({ icon: Icon, label }) => (
+          <WhyItem key={label} icon={Icon} label={label} />
+        ))}
       </div>
     </section>
+  );
+}
+
+type WhyIcon = (typeof WHY_ITEMS)[number]["icon"];
+
+interface WhyItemProps {
+  icon: WhyIcon;
+  label: string;
+}
+
+function WhyItem({ icon: Icon, label }: WhyItemProps) {
+  return (
+    <div className="flex flex-col items-center text-center">
+      <Icon className="h-9 w-9 text-stone-600" aria-hidden />
+      <span className="mt-2.5 text-base font-medium text-stone-700">{label}</span>
+    </div>
   );
 }

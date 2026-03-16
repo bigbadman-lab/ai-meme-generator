@@ -1,14 +1,9 @@
-import { MainHeader } from "@/components/marketing/main-header";
-import { BottomDockNav } from "@/components/marketing/bottom-dock-nav";
-
 export default function MarketingLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <div className="min-h-screen">
-      <MainHeader />
+    <div className="min-h-screen bg-stone-100/90 scroll-smooth">
       {children}
-      <BottomDockNav />
     </div>
   );
 }

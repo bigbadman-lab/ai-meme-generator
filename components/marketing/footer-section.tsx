@@ -1,25 +1,84 @@
 import Link from "next/link";
+import Image from "next/image";
+import { FramedSection } from "./framed-section";
+
+const FOOTER_LINKS = {
+  product: [
+    { label: "Product", href: "/#features-heading" },
+    { label: "Pricing", href: "/#pricing-heading" },
+    { label: "FAQ", href: "/#faq-heading" },
+  ],
+  company: [
+    { label: "Log in", href: "/login" },
+    { label: "Sign up", href: "/signup" },
+  ],
+};
 
 export function FooterSection() {
   return (
-    <footer
-      className="border-t border-[var(--canvas-border)] px-6 py-10"
+    <FramedSection
+      variant="footer"
+      id="footer"
       aria-label="Site footer"
+      className="w-full mt-10 sm:mt-12 md:mt-14"
     >
-      <nav className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-6 text-sm text-[var(--canvas-muted)]">
-        <Link
-          href="/login"
-          className="hover:text-[var(--canvas-heading)] transition-colors"
-        >
-          Log in
-        </Link>
-        <Link
-          href="/signup"
-          className="hover:text-[var(--canvas-heading)] transition-colors"
-        >
-          Sign up
-        </Link>
-      </nav>
-    </footer>
+      <div className="flex flex-col gap-12 md:flex-row md:items-start md:justify-between md:gap-16">
+        <div>
+          <Link href="/" className="inline-flex items-center">
+            <Image
+              src="/Mimly_footer.png"
+              alt="Mimly"
+              width={112}
+              height={112}
+              className="h-8 w-auto"
+            />
+          </Link>
+          <p className="marketing-copy mt-2 max-w-xs text-sm text-stone-400">
+            AI-generated memes for brands that move at internet speed.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-12 sm:gap-16">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-200">
+              Product
+            </h3>
+            <ul className="mt-3 flex flex-col gap-2">
+              {FOOTER_LINKS.product.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="text-sm text-stone-300 hover:text-white transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-200">
+              Account
+            </h3>
+            <ul className="mt-3 flex flex-col gap-2">
+              {FOOTER_LINKS.company.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className="text-sm text-stone-300 hover:text-white transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div className="mt-16 border-t border-stone-700/60 pt-8">
+        <p className="text-left text-xs text-stone-500">
+          © {new Date().getFullYear()} Meme Builder. All rights reserved.
+        </p>
+      </div>
+    </FramedSection>
   );
 }
