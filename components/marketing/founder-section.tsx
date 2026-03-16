@@ -10,7 +10,7 @@ export function FounderSection() {
     >
       <h2
         id="founder-heading"
-        className="text-center text-2xl font-bold text-stone-900 md:text-3xl"
+        className="text-center text-2xl font-bold tracking-tight text-stone-900 md:text-3xl"
       >
         A note from our founder
       </h2>
@@ -18,58 +18,56 @@ export function FounderSection() {
         <FloatingNote
           accent="white"
           rotate={0}
-          className="w-full max-w-xl p-6 md:p-8"
+          className="w-full max-w-xl overflow-hidden p-6 shadow-lg md:p-8"
         >
-          <div className="flex h-full flex-col items-center text-center md:items-start md:text-left">
-            {/* Founder image at top of note */}
-            <div className="flex items-center gap-4">
-              <div className="relative h-16 w-16 rounded-full border border-stone-200 bg-stone-100 shadow-sm shadow-black/5 md:h-20 md:w-20 overflow-hidden">
-                <Image
-                  src="/founder/mLwsIoTp_400x400.jpg"
-                  alt="Founder portrait"
-                  fill
-                  sizes="80px"
-                  className="object-cover"
-                />
-              </div>
-              <div className="hidden md:flex md:flex-col">
-                <div className="text-sm font-medium text-stone-900">
-                  Alex
+          <div className="flex h-full flex-col">
+            {/* Note header – looks like a real note */}
+            <div className="flex items-start justify-between gap-3 border-b border-stone-200/80 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-stone-200 bg-stone-100 md:h-14 md:w-14">
+                  <Image
+                    src="/founder/mLwsIoTp_400x400.jpg"
+                    alt="Alex"
+                    fill
+                    sizes="56px"
+                    className="object-cover"
+                  />
                 </div>
-                <div className="text-xs text-stone-500">
-                  Founder, Meme Builder
+                <div>
+                  <p className="text-sm font-semibold text-stone-900">Alex</p>
+                  <p className="text-xs text-stone-500">Founder, Mimly</p>
                 </div>
               </div>
-            </div>
-
-            <div className="mt-5 w-full border-t border-dashed border-stone-200/70 pt-4">
-              <p className="marketing-copy text-left">
-                Twelve years ago I discovered the power of memes when a Facebook
-                page I ran grew to more than two million followers. Over the years
-                I’ve worked with some of the largest social media players in the
-                world and watched memes become one of the internet’s most powerful
-                ways to communicate.
-              </p>
-              <p className="marketing-copy mt-4 text-left">
-                I built this platform so every business can tap into that same
-                power.
+              <p className="text-right text-[11px] uppercase tracking-wider text-stone-400">
+                Why Mimly
               </p>
             </div>
 
-            <div className="mt-6 w-full text-left">
-              <div className="text-base font-semibold italic text-stone-800">
-                Alex
-              </div>
-              <div className="text-xs uppercase tracking-[0.18em] text-stone-500">
-                Founder &amp; CEO, Meme Builder
-              </div>
+            <div className="mt-4 flex flex-col gap-3">
+              <p className="marketing-copy text-stone-700 leading-relaxed">
+                More than a decade ago I grew a Facebook page to over two million
+                followers by sharing memes.
+              </p>
+              <p className="marketing-copy text-stone-700 leading-relaxed">
+                Over the years I’ve worked with some of the biggest social media
+                publishers and seen first-hand how memes have become the
+                internet’s most powerful form of communication.
+              </p>
+              <p className="marketing-copy text-stone-700 leading-relaxed">
+                I built Mimly to help every business tap into that same power.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-stone-200/80 pt-4">
+              <span className="text-sm font-semibold italic text-stone-800">Alex</span>
+              <span className="text-xs text-stone-500">Founder &amp; CEO, Mimly</span>
               <a
                 href="https://x.com/alexattinger"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-3 inline-flex text-xs font-medium text-sky-700 underline underline-offset-2 hover:text-sky-800"
+                className="text-xs font-medium text-sky-600 underline underline-offset-2 hover:text-sky-700"
               >
-                Follow me on X
+                Follow on X
               </a>
             </div>
           </div>

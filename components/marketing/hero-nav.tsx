@@ -44,7 +44,7 @@ export function HeroNav({ onFixedChange }: HeroNavProps) {
     >
       <nav
         className={cn(
-          "mx-auto flex max-w-4xl items-center justify-between gap-4",
+          "relative mx-auto flex max-w-4xl items-center justify-between gap-4",
           "rounded-full border border-white/40 bg-white/40 px-4 py-1.5 shadow-lg shadow-black/5 backdrop-blur-md",
           "sm:px-5 sm:py-2"
         )}
@@ -61,7 +61,7 @@ export function HeroNav({ onFixedChange }: HeroNavProps) {
         </Link>
 
         {/* Desktop links */}
-        <div className="hidden items-center gap-8 sm:flex">
+        <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-8 sm:flex">
           {NAV_LINKS.map((item) => (
             <Link
               key={item.href}
@@ -82,8 +82,8 @@ export function HeroNav({ onFixedChange }: HeroNavProps) {
             Log in
           </Link>
           <Link
-            href="/signup"
-            className="rounded-full bg-stone-900 px-3 py-1.5 text-sm font-medium !text-white shadow-sm hover:bg-stone-800 transition-colors font-display"
+            href="/onboarding/manual"
+            className="cta-funky rounded-full bg-stone-900 px-3 py-1.5 text-sm font-medium !text-white shadow-sm hover:bg-stone-800 transition-colors font-display"
           >
             Get started
           </Link>
@@ -128,9 +128,9 @@ export function HeroNav({ onFixedChange }: HeroNavProps) {
                 Log in
               </Link>
               <Link
-                href="/signup"
+                href="/onboarding/manual"
                 onClick={() => setMobileOpen(false)}
-                className="flex-1 rounded-full bg-stone-900 py-2.5 text-center text-sm font-medium !text-white shadow-sm hover:bg-stone-800 transition-colors font-display"
+                className="cta-funky flex-1 rounded-full bg-stone-900 py-2.5 text-center text-sm font-medium !text-white shadow-sm hover:bg-stone-800 transition-colors font-display"
               >
                 Get started
               </Link>

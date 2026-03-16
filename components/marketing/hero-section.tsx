@@ -25,14 +25,10 @@ export function HeroSection() {
               id="hero-heading"
               className="text-4xl font-bold tracking-tight leading-tight text-stone-900 sm:text-5xl md:text-6xl"
             >
-              <span className="hero-word-memes inline-block">Memes</span>{" "}
-              m<span aria-hidden="true" className="inline-block text-[0.65em] leading-none align-middle">😆</span>ve{" "}
-              <span className="hero-word-faster inline-block">faster</span>
+              <span className="hero-word-memes inline-block">Memes</span> help brands
               <br />
-              than{" "}
-              <span className="hero-word-marketing inline-block">
-                marketing.
-              </span>
+              <span className="hero-word-grow inline-block">grow</span>{" "}
+              <span className="hero-word-online inline-block">online.</span>
             </h1>
             <p className="marketing-copy mx-auto mt-5 max-w-[60ch]">
               While brands plan campaigns, the internet shares memes.
@@ -40,7 +36,7 @@ export function HeroSection() {
               Our AI helps brands create memes people actually share.
             </p>
             <form
-              action="/signup"
+              action="/onboarding/analyze"
               method="get"
               className="mx-auto mt-8 flex max-w-md flex-col gap-3 sm:flex-row sm:items-center"
             >
@@ -56,11 +52,17 @@ export function HeroSection() {
               />
               <button
                 type="submit"
-                className="shrink-0 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium !text-white shadow-sm hover:bg-stone-800 transition-colors font-display"
+                className="cta-funky shrink-0 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium !text-white shadow-sm hover:bg-stone-800 transition-colors font-display"
               >
                 Get started
               </button>
             </form>
+            <p className="mt-3 text-center text-sm text-stone-500">
+              Don&apos;t have a website?{" "}
+              <a href="/onboarding/manual" className="font-medium text-stone-700 underline underline-offset-2 hover:text-stone-900">
+                Tap here.
+              </a>
+            </p>
           </div>
 
           <div className="mt-6 flex shrink-0 justify-center sm:mt-8">

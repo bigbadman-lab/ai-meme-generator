@@ -76,7 +76,7 @@ export function FooterSection() {
       </div>
       <div className="mt-16 border-t border-stone-700/60 pt-8">
         <p className="text-left text-xs text-stone-500">
-          © {new Date().getFullYear()} Meme Builder. All rights reserved.
+          © {new Date().getFullYear()} Mimly. All rights reserved.
         </p>
       </div>
     </FramedSection>
