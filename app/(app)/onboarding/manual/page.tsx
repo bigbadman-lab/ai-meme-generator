@@ -31,23 +31,70 @@ export default function OnboardingManualPage() {
       </p>
       <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
         <div>
-          <label htmlFor="manual-email" className={labelClass}>Email address</label>
+          <label htmlFor="manual-email" className={labelClass}>
+            Email address <span className="text-amber-700">*</span>
+          </label>
           <input id="manual-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="you@company.com" required />
         </div>
         <div>
-          <label htmlFor="manual-brand" className={labelClass}>Brand name</label>
-          <input id="manual-brand" type="text" value={brandName} onChange={(e) => setBrandName(e.target.value)} className={inputClass} required />
+          <label htmlFor="manual-brand" className={labelClass}>
+            Brand name <span className="text-stone-400">(optional)</span>
+          </label>
+          <input id="manual-brand" type="text" value={brandName} onChange={(e) => setBrandName(e.target.value)} className={inputClass} />
+        </div>
+        <div className="rounded-2xl border border-amber-200/80 bg-amber-50/70 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-amber-200/80 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-900">
+              Important
+            </span>
+            <p className="text-xs font-medium text-stone-800 sm:text-[13px]">
+              These answers shape your memes.
+            </p>
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-stone-600">
+            The more specific you are here, the better Mimly can tailor meme
+            ideas, tone, and captions to your business.
+          </p>
         </div>
         <div>
-          <label htmlFor="manual-sell" className={labelClass}>What do you sell?</label>
-          <input id="manual-sell" type="text" value={whatYouSell} onChange={(e) => setWhatYouSell(e.target.value)} className={inputClass} required />
+          <label htmlFor="manual-sell" className={labelClass}>
+            What do you sell? <span className="text-amber-700">*</span>
+          </label>
+          <input
+            id="manual-sell"
+            type="text"
+            value={whatYouSell}
+            onChange={(e) => setWhatYouSell(e.target.value)}
+            className={inputClass + " border-amber-200/80 focus:border-amber-400 focus:ring-amber-300"}
+            placeholder="e.g. 1:1 online fitness coaching for busy professionals"
+            required
+          />
+          <p className="mt-2 text-xs leading-relaxed text-stone-500">
+            Be specific about your product or service, not just the industry.
+          </p>
         </div>
         <div>
-          <label htmlFor="manual-audience" className={labelClass}>Who is your audience?</label>
-          <input id="manual-audience" type="text" value={audience} onChange={(e) => setAudience(e.target.value)} className={inputClass} required />
+          <label htmlFor="manual-audience" className={labelClass}>
+            Who is your audience? <span className="text-amber-700">*</span>
+          </label>
+          <input
+            id="manual-audience"
+            type="text"
+            value={audience}
+            onChange={(e) => setAudience(e.target.value)}
+            className={inputClass + " border-amber-200/80 focus:border-amber-400 focus:ring-amber-300"}
+            placeholder="e.g. Working parents trying to get fit with limited time"
+            required
+          />
+          <p className="mt-2 text-xs leading-relaxed text-stone-500">
+            Describe the exact people you want to reach rather than saying
+            “everyone”.
+          </p>
         </div>
         <div>
-          <label htmlFor="manual-country" className={labelClass}>Country / region</label>
+          <label htmlFor="manual-country" className={labelClass}>
+            Country / region <span className="text-amber-700">*</span>
+          </label>
           <select
             id="manual-country"
             value={country}

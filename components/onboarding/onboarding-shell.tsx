@@ -29,11 +29,11 @@ export function OnboardingShell({
         />
       </Link>
       <FramedSection
-        variant="default"
+        variant="onboarding"
         backgroundVariant="features"
-        className="w-full max-w-lg"
+        className="w-full"
       >
-        <div className="w-full px-5 py-6 sm:px-6 sm:py-8">
+        <div className="w-full px-4 pt-2 pb-3 sm:px-5 sm:pt-3 sm:pb-4">
           {children}
         </div>
       </FramedSection>

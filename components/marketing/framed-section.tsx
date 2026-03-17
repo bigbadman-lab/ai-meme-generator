@@ -5,6 +5,7 @@ import { SectionBackground } from "./section-background";
 
 export type FramedSectionVariant =
   | "hero"     // largest frame, nav inside
+  | "onboarding" // compact, narrow onboarding/auth card
   | "default"  // mid-width (gallery, features, founder, pricing, faq)
   | "footer";  // wide, dark
 
@@ -42,6 +43,13 @@ const variantStyles: Record<
     shadow: "shadow-xl shadow-black/5",
     border: "border border-stone-200/80",
   },
+  onboarding: {
+    maxWidth: "max-w-lg",
+    padding: "px-4 pt-4 pb-5 sm:px-5 sm:pt-5 sm:pb-6",
+    radius: "rounded-2xl sm:rounded-3xl",
+    shadow: "shadow-lg shadow-black/[0.04]",
+    border: "border border-stone-200/60",
+  },
   default: {
     maxWidth: "max-w-[1200px]",
     padding: "px-6 py-12 sm:px-8 sm:py-16 md:px-10 md:py-20",
@@ -69,7 +77,7 @@ export function FramedSection({
 }: FramedSectionProps) {
   const styles = variantStyles[variant];
   const bgVariant: SectionBackgroundVariant =
-    backgroundVariant ?? (variant === "default" ? "gallery" : variant);
+    backgroundVariant ?? (variant === "default" ? "gallery" : variant === "onboarding" ? "features" : variant);
 
   return (
     <section

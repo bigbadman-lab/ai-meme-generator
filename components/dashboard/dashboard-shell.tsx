@@ -3,12 +3,21 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { LayoutGrid, Images, Settings, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/dashboard/memes", label: "Memes" },
-  { href: "/settings", label: "Settings" },
+const NAV_SECTIONS = [
+  {
+    label: "Overview",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
+      { href: "/dashboard/memes", label: "Memes", icon: Images },
+    ],
+  },
+  {
+    label: "Configuration",
+    items: [{ href: "/settings", label: "Settings", icon: Settings }],
+  },
 ];
 
 export function DashboardShell({
@@ -17,21 +26,21 @@ export function DashboardShell({
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen bg-stone-100/60">
-      {/* Subtle dot pattern like homepage */}
+    <div className="min-h-screen bg-[#05070b] text-stone-100">
       <div
-        className="fixed inset-0 pointer-events-none z-0 opacity-[0.5]"
+        className="fixed inset-0 pointer-events-none z-0 opacity-[0.18]"
         style={{
-          backgroundImage: "radial-gradient(circle at 1px 1px, rgba(0,0,0,0.07) 1px, transparent 0)",
-          backgroundSize: "24px 24px",
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.08) 1px, transparent 0)",
+          backgroundSize: "22px 22px",
         }}
       />
+      <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_28%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.12),transparent_22%),linear-gradient(180deg,#090b10_0%,#05070b_100%)]" />
       <div className="relative z-10 flex min-h-screen flex-col md:flex-row">
-        {/* Sidebar – dark mode, white footer logo */}
-        <aside className="flex shrink-0 flex-row items-center gap-2 overflow-x-auto border-b border-stone-700/50 bg-stone-900 px-4 py-3 md:w-52 md:flex-col md:items-stretch md:gap-0.5 md:overflow-visible md:border-b-0 md:border-r md:border-r-stone-700/50 md:px-4 md:py-6">
+        <aside className="shrink-0 border-b border-white/8 bg-black/30 px-4 py-3 backdrop-blur-xl md:flex md:w-64 md:flex-col md:border-b-0 md:border-r md:border-r-white/8 md:px-4 md:py-5">
           <Link
             href="/"
-            className="shrink-0 hover:opacity-90 transition-opacity md:mb-5"
+            className="hidden shrink-0 transition-opacity hover:opacity-90 md:mb-5 md:block"
             aria-label="Mimly home"
           >
             <Image
@@ -42,48 +51,97 @@ export function DashboardShell({
               className="h-6 w-auto"
             />
           </Link>
-          {NAV.map((item) => {
-            const isActive =
-              item.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "rounded-lg px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap",
-                  isActive
-                    ? "bg-stone-700/80 text-white"
-                    : "text-stone-400 hover:bg-stone-800 hover:text-stone-200"
-                )}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+          <Link
+            href="/dashboard/create"
+            className="cta-funky flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-500 px-3 py-2.5 text-sm font-medium text-white shadow-[0_10px_30px_rgba(99,102,241,0.35)] hover:bg-indigo-400 md:flex"
+          >
+            <Sparkles className="h-4 w-4" />
+            Create meme
+          </Link>
+          <div className="hidden md:mt-6 md:flex md:flex-col md:gap-5">
+            {NAV_SECTIONS.map((section) => (
+              <div key={section.label}>
+                <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  {section.label}
+                </p>
+                <div className="mt-2 flex flex-col gap-1">
+                  {section.items.map((item) => {
+                    const isActive =
+                      item.href === "/dashboard"
+                        ? pathname === "/dashboard"
+                        : pathname.startsWith(item.href);
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-white/8 text-white"
+                            : "text-stone-400 hover:bg-white/5 hover:text-stone-200"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-row items-center gap-2 overflow-x-auto md:hidden">
+            {NAV_SECTIONS.flatMap((section) => section.items).map((item) => {
+              const isActive =
+                item.href === "/dashboard"
+                  ? pathname === "/dashboard"
+                  : pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+                    isActive
+                      ? "bg-white/10 text-white"
+                      : "text-stone-400 hover:bg-white/5 hover:text-stone-200"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
         </aside>
 
-        {/* Main */}
         <div className="flex flex-1 flex-col">
-          <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-stone-200/80 bg-white/90 px-4 backdrop-blur-sm md:px-6">
+          <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-white/8 bg-black/20 px-4 backdrop-blur-xl md:px-6">
             <Link
               href="/"
               className="flex items-center gap-2 hover:opacity-80 transition-opacity md:hidden"
               aria-label="Mimly home"
             >
               <Image
-                src="/Mimly.png"
+                src="/Mimly_footer.png"
                 alt="Mimly"
                 width={90}
                 height={27}
                 className="h-6 w-auto"
               />
             </Link>
-            <Link
-              href="/"
-              className="text-sm font-medium text-stone-500 hover:text-stone-900 transition-colors"
-            >
+            <div className="hidden md:block">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-stone-200">Workflow dashboard</p>
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
+                  Free
+                </span>
+              </div>
+              <p className="text-xs text-stone-500">Create and manage your memes.</p>
+            </div>
+            <Link href="/" className="text-sm font-medium text-stone-400 hover:text-white transition-colors">
               Back to home
             </Link>
           </header>
