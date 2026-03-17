@@ -19,7 +19,7 @@ export default function OnboardingCompletePage() {
         onClick={() => router.push("/dashboard")}
         className="cta-funky mt-6 w-full rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium !text-white shadow-sm hover:bg-stone-800 transition-colors font-display"
       >
-        Enter dashboard
+        Go to Home
       </button>
     </OnboardingShell>
   );

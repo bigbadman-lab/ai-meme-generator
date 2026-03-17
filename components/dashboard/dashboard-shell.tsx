@@ -10,7 +10,7 @@ const NAV_SECTIONS = [
   {
     label: "Overview",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
+      { href: "/dashboard", label: "Home", icon: LayoutGrid },
       { href: "/dashboard/memes", label: "Memes", icon: Images },
     ],
   },
@@ -134,7 +134,7 @@ export function DashboardShell({
             </Link>
             <div className="hidden md:block">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-stone-200">Workflow dashboard</p>
+                <p className="text-sm font-medium text-stone-200">Home</p>
                 <span className="rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
                   Free
                 </span>
