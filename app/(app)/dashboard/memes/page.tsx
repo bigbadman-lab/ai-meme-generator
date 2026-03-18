@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { DownloadMemeButton } from "@/components/dashboard/download-meme-button";
 
 const ACCENTS = [
   "from-indigo-500/30 via-sky-500/10 to-transparent",
@@ -80,29 +81,41 @@ export default async function MemesPage() {
               const topText = meme.top_text ?? "";
               const bottomText = meme.bottom_text ?? "";
               const title = meme.title ?? "Meme";
+              const hasImage = Boolean(meme.image_url);
               return (
                 <div
                   key={meme.id}
                   className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-[0_20px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl"
                 >
                   <div
-                    className={`relative aspect-square w-full bg-gradient-to-br ${accent} p-5`}
+                    className={`relative aspect-square w-full bg-gradient-to-br ${accent} ${hasImage ? "p-0" : "p-5"}`}
                   >
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_26%)]" />
-                    <div className="relative flex h-full flex-col justify-between">
-                      <div className="flex items-start justify-between gap-3">
-                        <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-stone-300">
-                          {meme.format ?? "Meme"}
-                        </span>
-                      </div>
-                      <div className="space-y-3">
-                        <p className="max-w-[18ch] text-lg font-semibold leading-tight text-white sm:text-xl">
-                          {topText}
-                        </p>
-                        <p className="max-w-[22ch] text-sm leading-relaxed text-stone-300">
-                          {bottomText}
-                        </p>
-                      </div>
+                    {hasImage && (
+                      <img
+                        src={meme.image_url as string}
+                        alt={title}
+                        className="absolute inset-0 h-full w-full object-cover"
+                      />
+                    )}
+                    <div className="relative z-10 flex h-full flex-col justify-between">
+                      {!hasImage && (
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-stone-300">
+                            {meme.format ?? "Meme"}
+                          </span>
+                        </div>
+                      )}
+                      {!hasImage && (
+                        <div className="space-y-3">
+                          <p className="max-w-[18ch] text-lg font-semibold leading-tight text-white sm:text-xl">
+                            {topText}
+                          </p>
+                          <p className="max-w-[22ch] text-sm leading-relaxed text-stone-300">
+                            {bottomText}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -116,13 +129,16 @@ export default async function MemesPage() {
                       </div>
                     </div>
                     <div className="mt-4 flex flex-col gap-3">
-                      <a
-                        href={getDownloadHref(title, topText, bottomText)}
-                        download={`${meme.id}.svg`}
+                      <DownloadMemeButton
+                        imageUrl={meme.image_url ?? null}
+                        fallbackHref={getDownloadHref(title, topText, bottomText)}
+                        downloadFilename={
+                          meme.image_url ? `${meme.id}.png` : `${meme.id}.svg`
+                        }
                         className="cta-funky inline-flex items-center justify-center rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-[0_10px_30px_rgba(99,102,241,0.35)] hover:bg-indigo-400"
                       >
                         Download meme
-                      </a>
+                      </DownloadMemeButton>
                     </div>
                   </div>
                 </div>
