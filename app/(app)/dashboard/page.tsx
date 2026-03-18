@@ -39,6 +39,11 @@ export default function DashboardPage() {
         <div className="mt-12 rounded-2xl border border-white/8 bg-white/[0.03] p-4 sm:flex sm:items-center sm:justify-between sm:gap-4 sm:p-4">
           <div className="flex items-center gap-3">
             <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/5">
+              {/* Online indicator (bottom-right) */}
+              <span
+                className="absolute bottom-1 right-1 h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(5,7,11,0.8)] ring-1 ring-emerald-300/60"
+                aria-hidden="true"
+              />
               <Image
                 src="/founder/mLwsIoTp_400x400.jpg"
                 alt="Alex Attinger"

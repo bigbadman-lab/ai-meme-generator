@@ -186,6 +186,19 @@ export async function GET(request: Request) {
           data: { user },
         } = await supabaseAfter.auth.getUser();
         if (user?.email) {
+          // Returning users may not have an onboarding draft row anymore (or it may fail
+          // to load). In that case, if we already have an onboarded profile, allow login.
+          const { data: existingProfile } = await supabaseAfter
+            .schema("public")
+            .from("profiles")
+            .select("onboarding_completed_at")
+            .eq("id", user.id)
+            .maybeSingle();
+
+          if (existingProfile?.onboarding_completed_at) {
+            return NextResponse.redirect(new URL(nextPath, request.url));
+          }
+
           const params = new URLSearchParams();
           params.set("review", "1");
           params.set(
