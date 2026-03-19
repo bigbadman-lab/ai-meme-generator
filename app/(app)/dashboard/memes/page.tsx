@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { DownloadMemeButton } from "@/components/dashboard/download-meme-button";
+import { generateMoreMemes } from "@/lib/actions/memes";
 
 const ACCENTS = [
   "from-indigo-500/30 via-sky-500/10 to-transparent",
@@ -47,6 +48,16 @@ export default async function MemesPage() {
 
   const list = memes ?? [];
 
+  async function handleGenerateMore() {
+    "use server";
+
+    const { error } = await generateMoreMemes();
+    if (error) {
+      console.error("[memes-page] Generate more failed", { error });
+    }
+    redirect("/dashboard/memes");
+  }
+
   return (
     <DashboardShell>
       <div className="mx-auto w-full max-w-6xl">
@@ -59,9 +70,21 @@ export default async function MemesPage() {
               Review your generated set and download the ones you want to post.
             </p>
           </div>
-          <span className="rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">
-            {list.length} meme{list.length !== 1 ? "s" : ""} generated
-          </span>
+          <div className="flex flex-col gap-2 sm:items-end">
+            <span className="rounded-full border border-emerald-400/20 bg-emerald-500/15 px-2.5 py-1 text-xs font-medium text-emerald-300">
+              {list.length} meme{list.length !== 1 ? "s" : ""} generated
+            </span>
+            {list.length > 0 && (
+              <form action={handleGenerateMore}>
+                <button
+                  type="submit"
+                  className="cta-funky inline-flex items-center justify-center rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-[0_10px_30px_rgba(99,102,241,0.35)] hover:bg-indigo-400"
+                >
+                  Generate more
+                </button>
+              </form>
+            )}
+          </div>
         </div>
 
         {list.length === 0 ? (

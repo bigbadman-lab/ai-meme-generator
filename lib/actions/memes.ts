@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/actions/profile";
 import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
@@ -7,7 +8,11 @@ import { randomUUID } from "node:crypto";
 import { renderMemePNGFromTemplate } from "@/renderer/renderMemeTemplate";
 
 export async function generateMockMemes(
-  promotionContext?: string
+  promotionContext?: string,
+  options?: {
+    limit?: number;
+    excludeExistingUserTemplates?: boolean;
+  }
 ): Promise<{ error: string | null }> {
   const supabase = await createClient();
 
@@ -21,7 +26,121 @@ export async function generateMockMemes(
     return { error: "Missing profile. Please complete onboarding again." };
   }
 
-  const promotion = (promotionContext ?? "").trim() || null;
+  const PROMOTION_MAX_CHARS = 280;
+  const TITLE_MAX_CHARS = 45;
+  const INITIAL_TEMPLATE_BATCH_SIZE = 3;
+  const ORDERED_TEMPLATE_SLUG_POOL = [
+    "victorian-nobody-me",
+    "drake",
+    "woman-yelling-cat",
+    "green-mile-tired-boss",
+    "two-buttons",
+    "disaster-girl",
+    "leo-cheers",
+    "pov-anne-hathaway",
+    "this-is-fine",
+    "surprised-pikachu",
+    "man-standing-up",
+    "need-my-fix",
+    "beetlejuice-surprised",
+  ] as const;
+
+  type PromoMode = "none" | "light" | "direct";
+  type VariantType = "standard" | "promo" | "important_day" | "trending_signal";
+  type TemplateType =
+    | "top_caption"
+    | "side_caption"
+    | "overlay"
+    | "sign_caption";
+
+  const normalizePromotionContext = (value: unknown): string | null => {
+    if (typeof value !== "string") return null;
+    const collapsed = value.replace(/\s+/g, " ").trim();
+    if (!collapsed) return null;
+    return collapsed.slice(0, PROMOTION_MAX_CHARS).trim() || null;
+  };
+
+  const promotion = normalizePromotionContext(promotionContext);
+  const batchSize = options?.limit ?? INITIAL_TEMPLATE_BATCH_SIZE;
+
+  // Keep the promo heuristic explicit and boring so it's easy to tune.
+  const derivePromoMode = (template: {
+    promotion_fit: string;
+  }): PromoMode => {
+    if (!promotion) return "none";
+
+    const fit = template.promotion_fit.toLowerCase();
+
+    const noneSignals = [
+      "avoid",
+      "bad fit",
+      "poor fit",
+      "not fit",
+      "not a fit",
+      "not ideal",
+      "doesn't fit",
+      "does not fit",
+      "weak fit",
+      "no promo",
+      "ignore promo",
+      "general only",
+      "brand only",
+    ];
+    if (noneSignals.some((signal) => fit.includes(signal))) {
+      return "none";
+    }
+
+    const directSignals = [
+      "promotion",
+      "promo",
+      "deal",
+      "offer",
+      "sale",
+      "discount",
+      "launch",
+      "announcement",
+      "cta",
+      "call to action",
+      "pricing",
+      "product drop",
+    ];
+    if (directSignals.some((signal) => fit.includes(signal))) {
+      return "direct";
+    }
+
+    const lightSignals = [
+      "light",
+      "subtle",
+      "soft",
+      "indirect",
+      "contextual",
+      "timing",
+      "emotion",
+      "reaction",
+      "vibe",
+      "hint",
+    ];
+    if (lightSignals.some((signal) => fit.includes(signal))) {
+      return "light";
+    }
+
+    return "light";
+  };
+
+  const normalizeTemplateType = (value: unknown): TemplateType => {
+    const normalized = String(value ?? "")
+      .trim()
+      .toLowerCase();
+    if (
+      normalized === "top_caption" ||
+      normalized === "side_caption" ||
+      normalized === "overlay" ||
+      normalized === "sign_caption"
+    ) {
+      return normalized;
+    }
+    return "top_caption";
+  };
 
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
     console.error("[meme-gen] Missing SUPABASE_SERVICE_ROLE_KEY");
@@ -88,7 +207,21 @@ export async function generateMockMemes(
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
   };
 
-  const TITLE_MAX_CHARS = 45;
+  const getEffectiveSlotMaxChars = (
+    templateType: TemplateType,
+    rawValue: any,
+    fallback: number
+  ): number => {
+    const normalized = toInt(rawValue, fallback);
+
+    // Practical MVP: give tight side-caption templates one extra character of
+    // breathing room without loosening other template families.
+    if (templateType === "side_caption" && normalized <= 16) {
+      return 17;
+    }
+
+    return normalized;
+  };
 
   const normalizeSingleLine = (v: unknown): string | null => {
     if (typeof v !== "string") return null;
@@ -96,27 +229,60 @@ export async function generateMockMemes(
     return cleaned || null;
   };
 
-  const looksLikeCutOffFragment = (text: string, maxChars: number): boolean => {
+  const endsWithDanglingConnector = (text: string): boolean => {
+    return /\b(the|a|an|for|on|in|to|of|with|when|where|why|then|if|while|because|before|after|into|from|at|by)\b$/i.test(
+      text
+    );
+  };
+
+  const looksLikeShortLabel = (text: string): boolean => {
     const trimmed = text.trim();
-    if (!trimmed) return true;
+    if (trimmed.length < 2) return false;
+    if (!/[a-z0-9]/i.test(trimmed)) return false;
+    if (endsWithDanglingConnector(trimmed)) return false;
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    return words.length <= 5;
+  };
+
+  const looksLikeCutOffFragment = (
+    text: string,
+    maxChars: number,
+    options?: { allowShortLabelMode?: boolean }
+  ): { isFragment: boolean; bypassedRule: string | null } => {
+    const trimmed = text.trim();
+    if (!trimmed) return { isFragment: true, bypassedRule: null };
 
     // If it's right up against the character limit and doesn't end with punctuation,
     // it's a strong sign the model generated something too long and we *would have*
     // truncated it.
     const endsWithPunctuation = /[.!?]$/.test(trimmed);
     if (trimmed.length >= Math.max(10, maxChars - 2) && !endsWithPunctuation) {
-      return true;
+      if (options?.allowShortLabelMode && looksLikeShortLabel(trimmed)) {
+        return {
+          isFragment: false,
+          bypassedRule: "near_limit_no_punctuation_for_short_label",
+        };
+      }
+      return { isFragment: true, bypassedRule: null };
     }
 
     // If it ends on a dangling preposition/conjunction, treat it like an incomplete fragment.
-    if (/\b(the|a|an|for|on|in|to|of|with|when|where|why|then|if|while|because|before|after|into|from|at|by)\b$/i.test(trimmed)) {
-      return true;
+    if (endsWithDanglingConnector(trimmed)) {
+      return { isFragment: true, bypassedRule: null };
     }
 
     // Avoid super-short outputs that are likely incomplete.
-    if (trimmed.length < 4) return true;
+    if (trimmed.length < 4) {
+      if (options?.allowShortLabelMode && looksLikeShortLabel(trimmed)) {
+        return {
+          isFragment: false,
+          bypassedRule: "min_length_for_short_label",
+        };
+      }
+      return { isFragment: true, bypassedRule: null };
+    }
 
-    return false;
+    return { isFragment: false, bypassedRule: null };
   };
 
   const validateTitle = (v: unknown): { value: string | null; failRule: string | null; length: number | null } => {
@@ -131,7 +297,12 @@ export async function generateMockMemes(
   const validateSlotTextSingleLine = (
     v: unknown,
     maxChars: number,
-    slotLabel: "top" | "bottom"
+    slotLabel: string,
+    options?: {
+      allowShortLabelMode?: boolean;
+      templateSlug?: string;
+      templateType?: TemplateType;
+    }
   ): { value: string | null; failRule: string | null; length: number | null } => {
     const cleaned = normalizeSingleLine(v);
     if (!cleaned) return { value: null, failRule: `${slotLabel}_missing_or_invalid`, length: null };
@@ -142,7 +313,30 @@ export async function generateMockMemes(
         length: cleaned.length,
       };
     }
-    if (looksLikeCutOffFragment(cleaned, maxChars)) {
+    if (options?.allowShortLabelMode && looksLikeShortLabel(cleaned)) {
+      console.log("[meme-gen] Short label accepted without fragment penalty", {
+        template: options?.templateSlug ?? null,
+        templateType: options?.templateType ?? null,
+        slotLabel,
+        text: cleaned,
+        maxChars,
+      });
+      return { value: cleaned, failRule: null, length: cleaned.length };
+    }
+    const fragmentCheck = looksLikeCutOffFragment(cleaned, maxChars, {
+      allowShortLabelMode: options?.allowShortLabelMode,
+    });
+    if (fragmentCheck.bypassedRule) {
+      console.log("[meme-gen] Fragment rule relaxed for short label", {
+        template: options?.templateSlug ?? null,
+        templateType: options?.templateType ?? null,
+        slotLabel,
+        bypassedRule: fragmentCheck.bypassedRule,
+        text: cleaned,
+        maxChars,
+      });
+    }
+    if (fragmentCheck.isFragment) {
       return {
         value: null,
         failRule: `${slotLabel}_likely_fragment_cutoff`,
@@ -174,6 +368,7 @@ export async function generateMockMemes(
     template_id: string;
     template_name: string;
     slug: string;
+    template_type: TemplateType;
     template_logic: string;
     meme_mechanic: string;
     emotion_style: string;
@@ -217,58 +412,380 @@ export async function generateMockMemes(
     return Math.floor(n);
   };
 
-  const compatibleTemplates: CompatibleTemplate[] = templates
-    .filter((t: any) => isActive(t))
-    .filter(
-      (t: any) => String(t.slug ?? "").trim().toLowerCase() !== "distracted-boyfriend"
-    )
-    .filter((t: any) => !hasSlot3(t))
-    .map((t: any) => {
-      const template_id = String(
-        t.template_id ?? t.id ?? t.slug ?? ""
-      ).trim();
-      return {
-        template_id,
-        template_name: String(t.template_name ?? t.name ?? "").trim(),
-        slug: String(t.slug ?? "").trim(),
-        template_logic: String(t.template_logic ?? "").trim(),
-        meme_mechanic: String(t.meme_mechanic ?? "").trim(),
-        emotion_style: String(t.emotion_style ?? "").trim(),
-        slot_1_role: String(t.slot_1_role ?? "").trim(),
-        slot_2_role: t.slot_2_role ? String(t.slot_2_role).trim() : null,
-        slot_1_max_chars: toInt(t.slot_1_max_chars, 60),
-        slot_2_max_chars: toInt(t.slot_2_max_chars, 60),
-        slot_1_max_lines: toInt(t.slot_1_max_lines, 2),
-        slot_2_max_lines: toInt(t.slot_2_max_lines, 2),
-        context_fit: String(t.context_fit ?? "").trim(),
-        business_fit: String(t.business_fit ?? "").trim(),
-        promotion_fit: String(t.promotion_fit ?? "").trim(),
-        example_output: String(t.example_output ?? "").trim(),
-        isTwoSlot: hasSlot2(t),
-        image_filename: t.image_filename ? String(t.image_filename).trim() : null,
-        canvas_width: toNullableInt(t.canvas_width) ?? 1080,
-        canvas_height: toNullableInt(t.canvas_height) ?? 1080,
-        font: t.font ? String(t.font).trim() : null,
-        font_size: toNullableInt(t.font_size),
-        alignment: t.alignment ? String(t.alignment).trim() : null,
-        text_color: t.text_color ? String(t.text_color).trim() : null,
-        stroke_color: t.stroke_color ? String(t.stroke_color).trim() : null,
-        stroke_width: toNullableInt(t.stroke_width),
-        slot_1_x: toNullableInt(t.slot_1_x),
-        slot_1_y: toNullableInt(t.slot_1_y),
-        slot_1_width: toNullableInt(t.slot_1_width),
-        slot_1_height: toNullableInt(t.slot_1_height),
-        slot_2_x: toNullableInt(t.slot_2_x),
-        slot_2_y: toNullableInt(t.slot_2_y),
-        slot_2_width: toNullableInt(t.slot_2_width),
-        slot_2_height: toNullableInt(t.slot_2_height),
-      } satisfies CompatibleTemplate;
-    })
-    .filter((t) => t.template_id && t.template_name && t.slug && t.slot_1_role);
+  const getTemplateTypeWritingGuidance = (template: CompatibleTemplate): string => {
+    switch (template.template_type) {
+      case "side_caption":
+        return `Template-type guidance: side_caption
+- This template is not a normal top/bottom setup-punchline meme.
+- Treat the slots like side-by-side options, comparisons, choices, labels, or contrasting reactions.
+- Keep the slot phrasing parallel and scannable at a glance.
+- Avoid writing one long setup in slot 1 and a separate punchline in slot 2 unless the slot roles explicitly call for that.`;
+      case "overlay":
+        return `Template-type guidance: overlay
+- Text sits directly on the image, so readability is critical.
+- Prefer fewer words, faster comprehension, and stronger immediate punch.
+- Avoid dense wording, clause-heavy phrasing, or anything that needs explanation.
+- If in doubt, make the text shorter and cleaner than a typical caption meme.`;
+      case "sign_caption":
+        return `Template-type guidance: sign_caption
+- The main text should read naturally as something someone could hold up, point at, or present on a sign.
+- Favor concise statements, opinions, requests, or pointed observations that feel believable in a sign area.
+- Avoid generic top/bottom meme rhythm unless the template has a real second support slot.`;
+      case "top_caption":
+      default:
+        return `Template-type guidance: top_caption
+- Use standard caption-meme behavior.
+- Slot 1 can carry the setup or primary caption idea.
+- If there is a second slot, it can complete the contrast, payoff, or reaction naturally.`;
+    }
+  };
+
+  const getSlotWritingGuidance = (template: CompatibleTemplate): string => {
+    const slot1Role = template.slot_1_role || "slot_1";
+    const slot2Role = template.slot_2_role || "slot_2";
+
+    switch (template.template_type) {
+      case "side_caption":
+        return template.isTwoSlot
+          ? `Slot behavior for side_caption:
+Slot 1:
+- role: ${slot1Role}
+- Think short label, option, reaction, or comparison side A.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}
+
+Slot 2:
+- role: ${slot2Role}
+- Think short label, option, reaction, or comparison side B.
+- Keep it complementary or contrasting with Slot 1.
+- max_chars: ${template.slot_2_max_chars}
+- max_lines: ${template.slot_2_max_lines}`
+          : `Slot behavior for side_caption:
+Slot 1:
+- role: ${slot1Role}
+- Write a short comparison label, option, or reaction that works on its own.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}`;
+      case "overlay":
+        return template.isTwoSlot
+          ? `Slot behavior for overlay:
+Slot 1:
+- role: ${slot1Role}
+- Keep it extremely readable on-image.
+- Prefer a short phrase, not a full explanatory sentence.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}
+
+Slot 2:
+- role: ${slot2Role}
+- Also keep it short, punchy, and visually scannable.
+- max_chars: ${template.slot_2_max_chars}
+- max_lines: ${template.slot_2_max_lines}`
+          : `Slot behavior for overlay:
+Slot 1:
+- role: ${slot1Role}
+- Keep it extremely readable on-image.
+- Prefer a short phrase, not a full explanatory sentence.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}`;
+      case "sign_caption":
+        return template.isTwoSlot
+          ? `Slot behavior for sign_caption:
+Slot 1:
+- role: ${slot1Role}
+- This should read naturally as sign text or the main displayed statement.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}
+
+Slot 2:
+- role: ${slot2Role}
+- Only use this as supporting context or a natural secondary line if the template truly needs it.
+- Do not turn it into a generic punchline by default.
+- max_chars: ${template.slot_2_max_chars}
+- max_lines: ${template.slot_2_max_lines}`
+          : `Slot behavior for sign_caption:
+Slot 1:
+- role: ${slot1Role}
+- This should read naturally as sign text or the main displayed statement.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}`;
+      case "top_caption":
+      default:
+        return template.isTwoSlot
+          ? `Slot behavior for top_caption:
+Slot 1:
+- role: ${slot1Role}
+- Primary caption/setup.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}
+
+Slot 2:
+- role: ${slot2Role}
+- Secondary caption/payoff/reaction when appropriate.
+- max_chars: ${template.slot_2_max_chars}
+- max_lines: ${template.slot_2_max_lines}`
+          : `Slot behavior for top_caption:
+Slot 1:
+- role: ${slot1Role}
+- Primary caption/setup.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}`;
+    }
+  };
+
+  const getMemeMechanicGuidance = (template: CompatibleTemplate): string => {
+    switch (template.meme_mechanic) {
+      case "reject_vs_prefer":
+        return `Meme-mechanic guidance: reject_vs_prefer
+- Slot 1 must clearly feel like the worse, rejected, annoying, outdated, or less satisfying option.
+- Slot 2 must clearly feel like the better, preferred, smarter, cleaner, or more satisfying option.
+- The contrast should be directional and obvious immediately.
+- Keep both slots short, parallel, and easy to compare at a glance.
+- Avoid generic labels that do not create a strong before-vs-after or bad-vs-better contrast.
+- Prefer concrete behaviors, tools, workflows, or situations over abstract business nouns.`;
+      case "difficult_choice":
+        return `Meme-mechanic guidance: difficult_choice
+- Slot 1 and Slot 2 must both be plausible competing choices.
+- The conflict should feel immediate: both options should pull against each other in a believable way.
+- Make the dilemma obvious from the labels alone.
+- Keep both slots short, parallel, and equally plausible.
+- Avoid weak pairings that do not feel like a real stressful choice.`;
+      default:
+        return "";
+    }
+  };
+
+  const getTemplateSpecificGuidance = (template: CompatibleTemplate): string => {
+    if (template.slug === "drake") {
+      return `Template-specific guidance: drake
+- Write this like an instantly recognizable Drake reject-vs-prefer contrast.
+- Slot 1 should feel visibly worse: messy, outdated, frustrating, manual, awkward, or low-status.
+- Slot 2 should feel visibly better: cleaner, smarter, easier, faster, or more satisfying.
+- Use concrete wording, not abstract labels. Avoid vague terms like "solutions", "insights", "informed", "strategy", or "innovation".
+- Favor direct contrasts that a person can picture immediately.
+- Keep both labels ultra-short and parallel.`;
+    }
+
+    if (template.slug === "two-buttons") {
+      return `Template-specific guidance: two-buttons
+- Write this like a real impossible choice between two competing options.
+- Each slot must be a short, complete choice label, not a sentence fragment.
+- Both choices should feel plausible and in tension with each other immediately.
+- Avoid vague abstractions or labels that do not create a real dilemma.
+- Keep both options ultra-short, parallel, and comfortably under the max chars.`;
+    }
+
+    if (template.slug === "woman-yelling-cat") {
+      return `Template-specific guidance: woman-yelling-cat
+- This template should produce exactly one strong caption in top_text.
+- bottom_text MUST be null.
+- Do not write a second response line, second label, or opposing caption.
+- Write one sharp, complete reaction/accusation line only.
+- Aim for 22-24 characters ideally, not the full 26.
+- Avoid filler words and full sentence phrasing when possible.
+- Keep it punchy, compressed, and instantly readable.`;
+    }
+
+    return "";
+  };
+
+  const getRetryCorrectiveGuidance = (
+    template: CompatibleTemplate,
+    previousFailureRule: string | null
+  ): string => {
+    if (!previousFailureRule) return "";
+
+    if (
+      template.slug === "woman-yelling-cat" &&
+      previousFailureRule === "slot_1_over_max_chars"
+    ) {
+      return `Retry correction:
+- The previous top_text was too long.
+- Keep the same idea, but compress it.
+- Remove filler words.
+- Rewrite shorter and tighter.
+- Stay comfortably under ${template.slot_1_max_chars} characters.`;
+    }
+
+    return "";
+  };
+
+  const isUltraTightTemplate = (template: CompatibleTemplate): boolean => {
+    if (template.template_type === "side_caption") {
+      if (template.isTwoSlot) {
+        return template.slot_1_max_chars <= 17 && template.slot_2_max_chars <= 17;
+      }
+      return template.slot_1_max_chars <= 17;
+    }
+
+    if (template.isTwoSlot) {
+      return template.slot_1_max_chars <= 16 && template.slot_2_max_chars <= 16;
+    }
+    return template.slot_1_max_chars <= 16;
+  };
+
+  const getUltraTightPromptGuidance = (template: CompatibleTemplate): string => {
+    if (!isUltraTightTemplate(template)) return "";
+
+    if (template.template_type === "side_caption") {
+      return `Ultra-tight template mode:
+- This template is extremely space-constrained.
+- Prefer 1-3 word labels, not full sentence-like captions.
+- Aim comfortably under the max chars for each slot rather than writing up to the limit.
+- Remove filler words, articles, and extra connective phrasing unless they are essential.
+- For side-by-side contrast, make Slot 1 and Slot 2 feel parallel and instantly scannable.
+- Think compressed option labels, reaction labels, or comparison shorthand.`;
+    }
+
+    return `Ultra-tight template mode:
+- This template is extremely space-constrained.
+- Prefer 1-3 word phrases whenever possible.
+- Aim comfortably under the max chars for each slot rather than writing up to the limit.
+- Use label-style wording over sentence-style wording.
+- Remove filler words and unnecessary setup.`;
+  };
+
+  const allowShortLabelValidationMode = (
+    template: CompatibleTemplate
+  ): boolean => {
+    return template.template_type === "side_caption" && isUltraTightTemplate(template);
+  };
+
+  const loadCompatibleTemplates = (rows: any[]): CompatibleTemplate[] => {
+    return rows
+      .filter((t: any) => isActive(t))
+      .filter(
+        (t: any) => String(t.slug ?? "").trim().toLowerCase() !== "distracted-boyfriend"
+      )
+      .filter((t: any) => !hasSlot3(t))
+      .map((t: any) => {
+        const template_id = String(
+          t.template_id ?? t.id ?? t.slug ?? ""
+        ).trim();
+        const templateType = normalizeTemplateType(
+          t.text_layout_type ?? t.template_type
+        );
+        return {
+          template_id,
+          template_name: String(t.template_name ?? t.name ?? "").trim(),
+          slug: String(t.slug ?? "").trim(),
+          template_type: templateType,
+          template_logic: String(t.template_logic ?? "").trim(),
+          meme_mechanic: String(t.meme_mechanic ?? "").trim(),
+          emotion_style: String(t.emotion_style ?? "").trim(),
+          slot_1_role: String(t.slot_1_role ?? "").trim(),
+          slot_2_role: t.slot_2_role ? String(t.slot_2_role).trim() : null,
+          slot_1_max_chars: getEffectiveSlotMaxChars(
+            templateType,
+            t.slot_1_max_chars,
+            60
+          ),
+          slot_2_max_chars: getEffectiveSlotMaxChars(
+            templateType,
+            t.slot_2_max_chars,
+            60
+          ),
+          slot_1_max_lines: toInt(t.slot_1_max_lines, 2),
+          slot_2_max_lines: toInt(t.slot_2_max_lines, 2),
+          context_fit: String(t.context_fit ?? "").trim(),
+          business_fit: String(t.business_fit ?? "").trim(),
+          promotion_fit: String(t.promotion_fit ?? "").trim(),
+          example_output: String(t.example_output ?? "").trim(),
+          isTwoSlot: hasSlot2(t),
+          image_filename: t.image_filename ? String(t.image_filename).trim() : null,
+          canvas_width: toNullableInt(t.canvas_width) ?? 1080,
+          canvas_height: toNullableInt(t.canvas_height) ?? 1080,
+          font: t.font ? String(t.font).trim() : null,
+          font_size: toNullableInt(t.font_size),
+          alignment: t.alignment ? String(t.alignment).trim() : null,
+          text_color: t.text_color ? String(t.text_color).trim() : null,
+          stroke_color: t.stroke_color ? String(t.stroke_color).trim() : null,
+          stroke_width: toNullableInt(t.stroke_width),
+          slot_1_x: toNullableInt(t.slot_1_x),
+          slot_1_y: toNullableInt(t.slot_1_y),
+          slot_1_width: toNullableInt(t.slot_1_width),
+          slot_1_height: toNullableInt(t.slot_1_height),
+          slot_2_x: toNullableInt(t.slot_2_x),
+          slot_2_y: toNullableInt(t.slot_2_y),
+          slot_2_width: toNullableInt(t.slot_2_width),
+          slot_2_height: toNullableInt(t.slot_2_height),
+        } satisfies CompatibleTemplate;
+      })
+      .filter((t) => t.template_id && t.template_name && t.slug && t.slot_1_role);
+  };
+
+  const buildOrderedTemplatePool = (
+    templates: CompatibleTemplate[],
+    excludedTemplateIds: Set<string>
+  ): CompatibleTemplate[] => {
+    const slugOrder = new Map(
+      ORDERED_TEMPLATE_SLUG_POOL.map((slug, index) => [slug, index])
+    );
+
+    return [...templates]
+      .filter((template) => !excludedTemplateIds.has(template.template_id))
+      .sort((a, b) => {
+        const aIndex = slugOrder.get(a.slug) ?? Number.MAX_SAFE_INTEGER;
+        const bIndex = slugOrder.get(b.slug) ?? Number.MAX_SAFE_INTEGER;
+        if (aIndex !== bIndex) return aIndex - bIndex;
+        return a.slug.localeCompare(b.slug);
+      });
+  };
+
+  const compatibleTemplates = loadCompatibleTemplates(templates);
 
   if (compatibleTemplates.length === 0) {
     console.error("[meme-gen] No compatible templates found after filtering.");
     return { error: "No compatible meme templates found." };
+  }
+
+  const excludedTemplateIds = new Set<string>();
+  if (options?.excludeExistingUserTemplates) {
+    const { data: existingRows, error: existingRowsError } = await supabase
+      .from("generated_memes")
+      .select("template_id")
+      .eq("user_id", user.id)
+      .not("template_id", "is", null);
+
+    if (existingRowsError) {
+      console.error("[meme-gen] Failed to load existing generated_memes", {
+        existingRowsError,
+      });
+      return { error: existingRowsError.message || "Failed to load existing memes." };
+    }
+
+    for (const row of existingRows ?? []) {
+      const templateId = String((row as any).template_id ?? "").trim();
+      if (templateId) excludedTemplateIds.add(templateId);
+    }
+  }
+
+  const attemptedTemplateIds = new Set<string>(excludedTemplateIds);
+  const orderedTemplatePool = buildOrderedTemplatePool(
+    compatibleTemplates,
+    attemptedTemplateIds
+  );
+
+  console.log("[meme-gen] Excluded template ids", {
+    excludeExistingUserTemplates: Boolean(options?.excludeExistingUserTemplates),
+    excludedCount: excludedTemplateIds.size,
+    excludedTemplateIds: [...excludedTemplateIds],
+  });
+
+  console.log(
+    "[meme-gen] Ordered template pool",
+    orderedTemplatePool.map((template, index) => ({
+      poolIndex: index + 1,
+      template: template.slug,
+      template_id: template.template_id,
+      template_type: template.template_type,
+      meme_mechanic: template.meme_mechanic || null,
+      emotion_style: template.emotion_style || null,
+    }))
+  );
+
+  if (orderedTemplatePool.length === 0) {
+    return { error: "No unused templates remain to generate." };
   }
 
   const apiKey = process.env.OPENAI_API_KEY as string;
@@ -279,22 +796,47 @@ export async function generateMockMemes(
 
   const generateForTemplate = async (
     template: CompatibleTemplate,
-    attempt: number
-  ): Promise<{ title: string; top_text: string; bottom_text: string | null } | null> => {
+    promoMode: PromoMode,
+    attempt: number,
+    previousFailureRule: string | null
+  ): Promise<
+    | {
+        result: { title: string; top_text: string; bottom_text: string | null };
+        failureRule: null;
+      }
+    | { result: null; failureRule: string | null }
+  > => {
     const brand_name = profile.brand_name ?? "";
     const what_you_do = profile.what_you_do ?? "";
     const audience = profile.audience ?? "";
     const country = profile.country ?? "";
+    const ultraTightPromptMode = isUltraTightTemplate(template);
+    const mechanicSpecificGuidance = getMemeMechanicGuidance(template);
+    const templateSpecificGuidance = getTemplateSpecificGuidance(template);
+    const retryCorrectiveGuidance = getRetryCorrectiveGuidance(
+      template,
+      previousFailureRule
+    );
 
     const topIdeal = Math.max(8, Math.floor(template.slot_1_max_chars * (attempt >= 2 ? 0.8 : 0.95)));
     const bottomIdeal = Math.max(8, Math.floor(template.slot_2_max_chars * (attempt >= 2 ? 0.8 : 0.95)));
 
-    const slot2Instructions = template.isTwoSlot
-      ? `Slot 2:
-- role: ${template.slot_2_role ?? "slot_2"}
-- max_chars: ${template.slot_2_max_chars}
-- max_lines: ${template.slot_2_max_lines}`
-      : `This template has only 1 slot. You MUST set bottom_text to null.`;
+    const promoModeInstructions =
+      promoMode === "direct"
+        ? `Promo mode: direct
+- You may make the promotion part of the meme idea when it feels natural for this template.
+- The meme must still read like a meme first, not ad copy.
+- If you mention the promotion, preserve the exact facts from the promo context. Do not change discount amounts, dates, terms, or offer details.
+- If the exact facts feel clunky or do not fit the slot limits, omit them instead of rewriting them inaccurately.`
+        : promoMode === "light"
+          ? `Promo mode: light
+- Use the promotion only as soft context.
+- Prefer the feeling, situation, urgency, timing, or audience reaction around the promotion rather than explicit ad copy.
+- A light reference is optional; if it weakens the joke, keep the meme broader.
+- Do not restate the offer mechanically.`
+          : `Promo mode: none
+- Ignore the promotion entirely for this template.
+- Make the meme about the brand/audience context only.`;
 
     const prompt = `You generate brand-safe meme captions that follow a specific template.
 
@@ -312,13 +854,15 @@ Brand context:
 - audience: ${audience}
 - country: ${country}
 
-Promotion/deal context (optional):
-${promotion ?? "None"}
+Promotion context:
+- normalized_promotion: ${promotion ?? "None"}
+- promo_mode: ${promoMode}
 
 Template metadata:
 - template_name: ${template.template_name}
 - slug: ${template.slug}
 - template_id: ${template.template_id}
+- template_type: ${template.template_type}
 - meme_mechanic: ${template.meme_mechanic}
 - emotion_style: ${template.emotion_style}
 - template_logic: ${template.template_logic}
@@ -327,20 +871,31 @@ Template metadata:
 - promotion_fit: ${template.promotion_fit}
 - example_output: ${template.example_output}
 
-Slot roles & constraints:
-Slot 1:
-- role: ${template.slot_1_role}
-- max_chars: ${template.slot_1_max_chars}
-- max_lines: ${template.slot_1_max_lines}
+${getTemplateTypeWritingGuidance(template)}
 
-${slot2Instructions}
+${getSlotWritingGuidance(template)}
+
+${mechanicSpecificGuidance}
+
+${templateSpecificGuidance}
+
+${getUltraTightPromptGuidance(template)}
+
+${retryCorrectiveGuidance}
 
 Rules:
 - Make it punchy, internet-native, and useful for posting (optimize for shareability).
 - Avoid bland, generic filler. Be specific to the brand + audience.
 - Use the template_logic and meme_mechanic to choose the angle. emotion_style sets tone.
+- Respect the template_type. Do not write every template like a generic top/bottom caption meme.
+- Meme quality matters more than forcing the promotion into the caption.
+- Never sound like a stiff ad, slogan, or generic marketing copy.
+- If you reference the promotion, preserve exact facts from the promo context. Never invent or alter discount amounts, dates, pricing, or offer terms.
+- If exact promo facts do not fit naturally or within the slot limits, leave them out rather than changing them.
 - Do not include disallowed/unsafe content (hate, sexual, illegal, harassment, personal data).
 - Never truncate mid-sentence: rewrite so it fits.
+
+${promoModeInstructions}
 
 Return ONLY valid JSON with this exact shape:
 {
@@ -351,6 +906,14 @@ Return ONLY valid JSON with this exact shape:
 
     console.log("[meme-gen] OpenAI prompt", {
       template: template.slug,
+      templateType: template.template_type,
+      memeMechanic: template.meme_mechanic,
+      hasMechanicSpecificGuidance: Boolean(mechanicSpecificGuidance),
+      hasTemplateSpecificGuidance: Boolean(templateSpecificGuidance),
+      hasRetryCorrectiveGuidance: Boolean(retryCorrectiveGuidance),
+      previousFailureRule,
+      promoMode,
+      ultraTightPromptMode,
       isTwoSlot: template.isTwoSlot,
     });
 
@@ -383,7 +946,7 @@ Return ONLY valid JSON with this exact shape:
         status: res.status,
         text,
       });
-      return null;
+      return { result: null, failureRule: "openai_error" };
     }
 
     const json = (await res.json()) as any;
@@ -396,24 +959,37 @@ Return ONLY valid JSON with this exact shape:
         slotType: template.isTwoSlot ? "2-slot" : "1-slot",
         content,
       });
-      return null;
+      return { result: null, failureRule: "json_parse_failed" };
     }
 
     const p = parsed as any;
+
+    const slot1ValidationLabel = "slot_1";
+    const slot2ValidationLabel = "slot_2";
 
     // Validation: avoid inserting broken rows.
     const titleValidation = validateTitle(p.title);
     const topValidation = validateSlotTextSingleLine(
       p.top_text,
       template.slot_1_max_chars,
-      "top"
+      slot1ValidationLabel,
+      {
+        allowShortLabelMode: allowShortLabelValidationMode(template),
+        templateSlug: template.slug,
+        templateType: template.template_type,
+      }
     );
     const rawBottom = p.bottom_text;
     const bottomValidation = template.isTwoSlot
       ? validateSlotTextSingleLine(
           rawBottom,
           template.slot_2_max_chars,
-          "bottom"
+          slot2ValidationLabel,
+          {
+            allowShortLabelMode: allowShortLabelValidationMode(template),
+            templateSlug: template.slug,
+            templateType: template.template_type,
+          }
         )
       : { value: null as string | null, failRule: null as string | null, length: null as number | null };
 
@@ -423,6 +999,7 @@ Return ONLY valid JSON with this exact shape:
         const rawBottomNormLen = normalizeSingleLine(rawBottom)?.length ?? null;
         console.error("[meme-gen] Validation failed", {
           template: `${template.template_name} (${template.slug})`,
+          templateType: template.template_type,
           attempt,
           slotType: "1-slot",
           title_len: titleValidation.length,
@@ -433,7 +1010,7 @@ Return ONLY valid JSON with this exact shape:
           bottom_max: template.slot_2_max_chars,
           rule: "one_slot_bottom_text_not_null",
         });
-        return null;
+        return { result: null, failureRule: "one_slot_bottom_text_not_null" };
       }
     }
 
@@ -443,6 +1020,7 @@ Return ONLY valid JSON with this exact shape:
         : titleValidation.failRule;
       console.error("[meme-gen] Validation failed", {
         template: `${template.template_name} (${template.slug})`,
+        templateType: template.template_type,
         attempt,
         slotType: template.isTwoSlot ? "2-slot" : "1-slot",
         title_len: titleValidation.length,
@@ -453,12 +1031,13 @@ Return ONLY valid JSON with this exact shape:
         bottom_max: template.isTwoSlot ? template.slot_2_max_chars : null,
         rule,
       });
-      return null;
+      return { result: null, failureRule: rule ?? "validation_failed" };
     }
 
     if (template.isTwoSlot && !bottomValidation.value) {
       console.error("[meme-gen] Validation failed", {
         template: `${template.template_name} (${template.slug})`,
+        templateType: template.template_type,
         attempt,
         slotType: "2-slot",
         title_len: titleValidation.length,
@@ -469,34 +1048,79 @@ Return ONLY valid JSON with this exact shape:
         bottom_max: template.slot_2_max_chars,
         rule: bottomValidation.failRule,
       });
-      return null;
+      return {
+        result: null,
+        failureRule: bottomValidation.failRule ?? "validation_failed",
+      };
     }
 
     const finalTitle = titleValidation.value!;
     const finalTop = topValidation.value!;
     const finalBottom = template.isTwoSlot ? bottomValidation.value : null;
 
-    return { title: finalTitle, top_text: finalTop, bottom_text: finalBottom };
+    return {
+      result: {
+        title: finalTitle,
+        top_text: finalTop,
+        bottom_text: finalBottom,
+      },
+      failureRule: null,
+    };
   };
 
   let insertedCount = 0;
   let failedCount = 0;
+  let attemptedCount = 0;
 
-  for (const template of compatibleTemplates) {
+  for (
+    let poolIndex = 0;
+    poolIndex < orderedTemplatePool.length &&
+    insertedCount < batchSize;
+    poolIndex++
+  ) {
+    const template = orderedTemplatePool[poolIndex];
+    attemptedTemplateIds.add(template.template_id);
+    attemptedCount++;
     const maxAttempts = 2;
+    const promoMode = derivePromoMode(template);
+    const variantType: VariantType =
+      promotion && promoMode !== "none" ? "promo" : "standard";
+    const fallbackReplacementUsed = failedCount > 0;
     let generated:
       | { title: string; top_text: string; bottom_text: string | null }
       | null = null;
+    let previousFailureRule: string | null = null;
+
+    console.log("[meme-gen] Attempting template from ordered pool", {
+      poolIndex: poolIndex + 1,
+      template: template.slug,
+      templateType: template.template_type,
+      variantType,
+      promoMode,
+      fallbackReplacementUsed,
+      ultraTightPromptMode: isUltraTightTemplate(template),
+      hasPromotion: Boolean(promotion),
+    });
 
     let attemptUsed = 1;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       attemptUsed = attempt;
-      generated = await generateForTemplate(template, attempt);
+      const generationAttempt = await generateForTemplate(
+        template,
+        promoMode,
+        attempt,
+        previousFailureRule
+      );
+      generated = generationAttempt.result;
+      previousFailureRule = generationAttempt.failureRule;
       if (generated) break;
 
       console.error("[meme-gen] Generation failed; retrying", {
         template: template.slug,
+        promoMode,
         attempt,
+        targetedFailureRule: previousFailureRule,
+        retryCorrectiveGuidanceActive: Boolean(previousFailureRule),
       });
     }
 
@@ -504,9 +1128,18 @@ Return ONLY valid JSON with this exact shape:
       failedCount++;
       console.error("[meme-gen] Skipped template after retries", {
         template: `${template.template_name} (${template.slug})`,
+        templateType: template.template_type,
+        variantType,
+        promoMode,
         attempts: maxAttempts,
         slotType: template.isTwoSlot ? "2-slot" : "1-slot",
         wasRetried: maxAttempts > 1,
+      });
+      console.log("[meme-gen] Fallback replacement queued", {
+        failedTemplate: template.slug,
+        nextTemplate: orderedTemplatePool[poolIndex + 1]?.slug ?? null,
+        insertedCount,
+        failedCount,
       });
       continue;
     }
@@ -562,6 +1195,7 @@ Return ONLY valid JSON with this exact shape:
       const message = e instanceof Error ? e.message : "Unknown render error";
       console.error("[meme-gen] Render/upload failed", {
         template: `${template.template_name} (${template.slug})`,
+        templateType: template.template_type,
         message,
       });
       imageUrl = null;
@@ -584,14 +1218,26 @@ Return ONLY valid JSON with this exact shape:
     if (insertError) {
       console.error("[meme-gen] Insert failed", {
         template: template.slug,
+        templateType: template.template_type,
+        variantType,
+        promoMode,
         insertError,
       });
       failedCount++;
       console.error("[meme-gen] Skipped template (DB insert failed)", {
         template: `${template.template_name} (${template.slug})`,
+        templateType: template.template_type,
+        variantType,
+        promoMode,
         attemptUsed,
         slotType: template.isTwoSlot ? "2-slot" : "1-slot",
         wasRetried: attemptUsed > 1,
+      });
+      console.log("[meme-gen] Fallback replacement queued", {
+        failedTemplate: template.slug,
+        nextTemplate: orderedTemplatePool[poolIndex + 1]?.slug ?? null,
+        insertedCount,
+        failedCount,
       });
       continue;
     }
@@ -599,6 +1245,10 @@ Return ONLY valid JSON with this exact shape:
     insertedCount++;
     console.log("[meme-gen] Inserted generated meme", {
       template: `${template.template_name} (${template.slug})`,
+      templateType: template.template_type,
+      variantType,
+      promoMode,
+      poolIndex: poolIndex + 1,
       slotType: template.isTwoSlot ? "2-slot" : "1-slot",
       attemptUsed,
       wasRetried: attemptUsed > 1,
@@ -612,6 +1262,9 @@ Return ONLY valid JSON with this exact shape:
 
   console.log("[meme-gen] Generation summary", {
     compatibleTemplates: compatibleTemplates.length,
+    orderedTemplatePoolSize: orderedTemplatePool.length,
+    batchSize,
+    attemptedCount,
     insertedCount,
     failedCount,
   });
@@ -621,4 +1274,14 @@ Return ONLY valid JSON with this exact shape:
   }
 
   return { error: null };
+}
+
+export async function generateMoreMemes(): Promise<{ error: string | null }> {
+  const result = await generateMockMemes(undefined, {
+    limit: 3,
+    excludeExistingUserTemplates: true,
+  });
+
+  revalidatePath("/dashboard/memes");
+  return result;
 }
