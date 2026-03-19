@@ -747,10 +747,12 @@ Slot 1:
 - This template should produce exactly one strong caption in top_text.
 - bottom_text MUST be null.
 - Do not write a second response line, second label, or opposing caption.
-- Write one sharp, complete reaction/accusation line only.
+- Write one fuller, complete reaction/accusation line only.
+- Do not write this like a short label, topic tag, or clipped headline.
+- Prefer a natural accusation/reaction phrase that feels like something someone would actually yell or say.
 - It can use most of the available space if the line stays punchy and complete.
-- A concise natural reaction line is better than an over-compressed fragment.
-- Keep it instantly readable, but do not over-compress just to stay far under the max.`;
+- A complete line is better than an over-compressed fragment.
+- Aim for a short natural clause rather than a 2-3 word label.`;
     }
 
     return "";
@@ -929,7 +931,7 @@ ${getTemplateTypeRetryShape()}`;
 
     if (template.slug === "woman-yelling-cat") {
       return {
-        topIdeal: Math.max(18, Math.floor(template.slot_1_max_chars * (attempt >= 2 ? 0.92 : 1))),
+        topIdeal: Math.max(22, Math.floor(template.slot_1_max_chars * (attempt >= 2 ? 0.96 : 1))),
         bottomIdeal: Math.max(
           8,
           Math.floor(template.slot_2_max_chars * (attempt >= 2 ? 0.8 : 0.95))
