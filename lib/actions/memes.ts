@@ -332,10 +332,7 @@ export async function generateMockMemes(
     const trimmed = text.trim();
     if (!trimmed) return true;
     if (endsWithDanglingConnector(trimmed)) return true;
-
-    return /^(when|if|me)\b.+\b(and|or|but|so|because|says|asks|why)$/i.test(
-      trimmed
-    );
+    return false;
   };
 
   const looksLikeShortLabel = (text: string): boolean => {
@@ -539,10 +536,13 @@ export async function generateMockMemes(
     emotion_style: string;
     slot_1_role: string;
     slot_2_role: string | null;
+    slot_3_role: string | null;
     slot_1_max_chars: number;
     slot_2_max_chars: number;
+    slot_3_max_chars: number;
     slot_1_max_lines: number;
     slot_2_max_lines: number;
+    slot_3_max_lines: number;
     context_fit: string;
     business_fit: string;
     promotion_fit: string;
@@ -747,12 +747,12 @@ Slot 1:
 - This template should produce exactly one strong caption in top_text.
 - bottom_text MUST be null.
 - Do not write a second response line, second label, or opposing caption.
-- Write one fuller, complete reaction/accusation line only.
+- Write one fuller, complete framing reaction/accusation line only.
 - Do not write this like a short label, topic tag, or clipped headline.
 - Prefer a natural accusation/reaction phrase that feels like something someone would actually yell or say.
 - It can use most of the available space if the line stays punchy and complete.
-- A complete line is better than an over-compressed fragment.
-- Aim for a short natural clause rather than a 2-3 word label.`;
+- A complete, expressive line is better than an over-compressed fragment.
+- Aim for a natural sentence-like caption, not a 2-3 word label.`;
     }
 
     return "";
@@ -863,9 +863,9 @@ ${getTemplateTypeRetryShape()}`;
 - The previous top_text was invalid.
 - top_text must be one complete standalone reaction/accusation line.
 - Do not end on open connectors like "and", "but", "so", or "because".
-- Keep it short without sounding cut off.
-- Remove filler words and rewrite tighter if needed.
-- Stay comfortably under ${template.slot_1_max_chars} characters.`;
+- Keep it complete and natural, not clipped.
+- You may use most of the available characters if needed for clarity.
+- Stay under ${template.slot_1_max_chars} characters while preserving expressive phrasing.`;
     }
 
     return `Retry correction:
@@ -931,7 +931,10 @@ ${getTemplateTypeRetryShape()}`;
 
     if (template.slug === "woman-yelling-cat") {
       return {
-        topIdeal: Math.max(22, Math.floor(template.slot_1_max_chars * (attempt >= 2 ? 0.96 : 1))),
+        topIdeal: Math.max(
+          24,
+          Math.floor(template.slot_1_max_chars * (attempt >= 2 ? 0.98 : 1))
+        ),
         bottomIdeal: Math.max(
           8,
           Math.floor(template.slot_2_max_chars * (attempt >= 2 ? 0.8 : 0.95))
@@ -954,10 +957,11 @@ ${getTemplateTypeRetryShape()}`;
   const loadCompatibleTemplates = (rows: any[]): CompatibleTemplate[] => {
     return rows
       .filter((t: any) => isActive(t))
-      .filter(
-        (t: any) => String(t.slug ?? "").trim().toLowerCase() !== "distracted-boyfriend"
-      )
-      .filter((t: any) => !hasSlot3(t))
+      .filter((t: any) => {
+        const slug = String(t.slug ?? "").trim().toLowerCase();
+        if (slug === "distracted-boyfriend") return true;
+        return !hasSlot3(t);
+      })
       .map((t: any) => {
         const template_id = String(
           t.template_id ?? t.id ?? t.slug ?? ""
@@ -975,6 +979,7 @@ ${getTemplateTypeRetryShape()}`;
           emotion_style: String(t.emotion_style ?? "").trim(),
           slot_1_role: String(t.slot_1_role ?? "").trim(),
           slot_2_role: t.slot_2_role ? String(t.slot_2_role).trim() : null,
+          slot_3_role: t.slot_3_role ? String(t.slot_3_role).trim() : null,
           slot_1_max_chars: getEffectiveSlotMaxChars(
             templateType,
             t.slot_1_max_chars,
@@ -985,8 +990,10 @@ ${getTemplateTypeRetryShape()}`;
             t.slot_2_max_chars,
             60
           ),
+          slot_3_max_chars: toInt(t.slot_3_max_chars, 60),
           slot_1_max_lines: toInt(t.slot_1_max_lines, 2),
           slot_2_max_lines: toInt(t.slot_2_max_lines, 2),
+          slot_3_max_lines: toInt(t.slot_3_max_lines, 2),
           context_fit: String(t.context_fit ?? "").trim(),
           business_fit: String(t.business_fit ?? "").trim(),
           promotion_fit: String(t.promotion_fit ?? "").trim(),
@@ -1257,6 +1264,7 @@ ${getTemplateTypeRetryShape()}`;
           title: string;
           top_text: string;
           bottom_text: string | null;
+          slot_3_text: string | null;
           post_caption: string;
         };
         failureRule: null;
@@ -1308,6 +1316,7 @@ IMPORTANT DAY WRITING RULES
     }
 
     const { topIdeal, bottomIdeal } = getIdealSlotTargets(template, attempt);
+    const isThreeSlot = !!template.slot_3_role;
 
     const promoModeInstructions =
       variantContext.variantType !== "promo"
@@ -1384,6 +1393,15 @@ ${getTemplateTypeWritingGuidance(template)}
 
 ${getSlotWritingGuidance(template)}
 
+${isThreeSlot
+  ? `Three-slot output mapping:
+- slot_1_role ("${template.slot_1_role}") -> slot_1_text
+- slot_2_role ("${template.slot_2_role ?? "slot_2"}") -> slot_2_text
+- slot_3_role ("${template.slot_3_role ?? "slot_3"}") -> slot_3_text
+- Keep each slot value single-line and complete.
+- Do not use markdown and do not include newline characters in any slot value.`
+  : ""}
+
 ${mechanicSpecificGuidance}
 
 ${templateSpecificGuidance}
@@ -1413,12 +1431,18 @@ ${promoModeInstructions}
 ${variantPromptGuidance}
 
 Return ONLY valid JSON with this exact shape:
-{
+${isThreeSlot
+  ? `{
+  "slot_1_text": string,
+  "slot_2_text": string,
+  "slot_3_text": string
+}`
+  : `{
   "title": string,
   "top_text": string,
   "bottom_text": ${template.isTwoSlot ? "string" : "null"},
   "post_caption": string
-}`;
+}`}`;
 
     console.log("[meme-gen] OpenAI prompt", {
       template: template.slug,
@@ -1482,12 +1506,28 @@ Return ONLY valid JSON with this exact shape:
 
     const slot1ValidationLabel = "slot_1";
     const slot2ValidationLabel = "slot_2";
+    const slot3ValidationLabel = "slot_3";
+    const slot1Value = isThreeSlot ? p.slot_1_text : p.top_text;
+    const slot2Value = isThreeSlot ? p.slot_2_text : p.bottom_text;
+    const slot3Value = isThreeSlot ? p.slot_3_text : null;
 
     // Validation: avoid inserting broken rows.
-    const titleValidation = validateTitle(p.title);
-    const postCaptionValidation = validatePostCaption(p.post_caption);
+    const titleValidation = isThreeSlot
+      ? {
+          value: template.template_name.slice(0, TITLE_MAX_CHARS),
+          failRule: null as string | null,
+          length: template.template_name.slice(0, TITLE_MAX_CHARS).length,
+        }
+      : validateTitle(p.title);
+    const postCaptionValidation = isThreeSlot
+      ? {
+          value: null as string | null,
+          failRule: null as string | null,
+          length: null as number | null,
+        }
+      : validatePostCaption(p.post_caption);
     const topValidation = validateSlotTextSingleLine(
-      p.top_text,
+      slot1Value,
       template.slot_1_max_chars,
       slot1ValidationLabel,
       {
@@ -1496,10 +1536,10 @@ Return ONLY valid JSON with this exact shape:
         templateType: template.template_type,
       }
     );
-    const rawBottom = p.bottom_text;
-    const bottomValidation = template.isTwoSlot
+    const rawBottom = slot2Value;
+    const bottomValidation = template.isTwoSlot || isThreeSlot
       ? validateSlotTextSingleLine(
-          rawBottom,
+          slot2Value,
           template.slot_2_max_chars,
           slot2ValidationLabel,
           {
@@ -1509,8 +1549,20 @@ Return ONLY valid JSON with this exact shape:
           }
         )
       : { value: null as string | null, failRule: null as string | null, length: null as number | null };
+    const slot3Validation = isThreeSlot
+      ? validateSlotTextSingleLine(
+          slot3Value,
+          template.slot_3_max_chars,
+          slot3ValidationLabel,
+          {
+            allowShortLabelMode: false,
+            templateSlug: template.slug,
+            templateType: template.template_type,
+          }
+        )
+      : { value: null as string | null, failRule: null as string | null, length: null as number | null };
 
-    if (!template.isTwoSlot) {
+    if (!template.isTwoSlot && !isThreeSlot) {
       // Enforce the contract: 1-slot templates must have `bottom_text = null`.
       if (rawBottom !== null && rawBottom !== undefined) {
         const rawBottomNormLen = normalizeSingleLine(rawBottom)?.length ?? null;
@@ -1551,12 +1603,12 @@ Return ONLY valid JSON with this exact shape:
       return { result: null, failureRule: rule ?? "validation_failed" };
     }
 
-    if (template.isTwoSlot && !bottomValidation.value) {
+    if ((template.isTwoSlot || isThreeSlot) && !bottomValidation.value) {
       console.error("[meme-gen] Validation failed", {
         template: `${template.template_name} (${template.slug})`,
         templateType: template.template_type,
         attempt,
-        slotType: "2-slot",
+        slotType: isThreeSlot ? "3-slot" : "2-slot",
         title_len: titleValidation.length,
         title_max: TITLE_MAX_CHARS,
         top_len: topValidation.length,
@@ -1571,9 +1623,32 @@ Return ONLY valid JSON with this exact shape:
       };
     }
 
+    if (isThreeSlot && !slot3Validation.value) {
+      console.error("[meme-gen] Validation failed", {
+        template: `${template.template_name} (${template.slug})`,
+        templateType: template.template_type,
+        attempt,
+        slotType: "3-slot",
+        title_len: titleValidation.length,
+        title_max: TITLE_MAX_CHARS,
+        top_len: topValidation.length,
+        top_max: template.slot_1_max_chars,
+        bottom_len: bottomValidation.length,
+        bottom_max: template.slot_2_max_chars,
+        slot_3_len: slot3Validation.length,
+        slot_3_max: template.slot_3_max_chars,
+        rule: slot3Validation.failRule,
+      });
+      return {
+        result: null,
+        failureRule: slot3Validation.failRule ?? "validation_failed",
+      };
+    }
+
     const finalTitle = titleValidation.value!;
     const finalTop = topValidation.value!;
-    const finalBottom = template.isTwoSlot ? bottomValidation.value : null;
+    const finalBottom = template.isTwoSlot || isThreeSlot ? bottomValidation.value : null;
+    const finalSlot3 = isThreeSlot ? slot3Validation.value : null;
     const finalPostCaption =
       postCaptionValidation.value ?? buildFallbackPostCaption({ variantContext });
 
@@ -1592,6 +1667,7 @@ Return ONLY valid JSON with this exact shape:
         title: finalTitle,
         top_text: finalTop,
         bottom_text: finalBottom,
+        slot_3_text: finalSlot3,
         post_caption: finalPostCaption,
       },
       failureRule: null,
@@ -1648,6 +1724,7 @@ Return ONLY valid JSON with this exact shape:
           title: string;
           top_text: string;
           bottom_text: string | null;
+          slot_3_text: string | null;
           post_caption: string;
         }
       | null = null;
@@ -1702,7 +1779,11 @@ Return ONLY valid JSON with this exact shape:
         variantType,
         promoMode,
         attempts: maxAttempts,
-        slotType: template.isTwoSlot ? "2-slot" : "1-slot",
+        slotType: template.slot_3_role
+          ? "3-slot"
+          : template.isTwoSlot
+            ? "2-slot"
+            : "1-slot",
         wasRetried: maxAttempts > 1,
       });
       console.log("[meme-gen] Fallback replacement queued", {
@@ -1738,6 +1819,7 @@ Return ONLY valid JSON with this exact shape:
           template,
           topText: generated.top_text,
           bottomText: generated.bottom_text,
+          slot_3_text: generated.slot_3_text ?? undefined,
         });
 
         const objectPath = `generated_memes/${user.id}/${template.template_id}/${randomUUID()}.png`;

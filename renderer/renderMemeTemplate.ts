@@ -23,11 +23,19 @@ type MemeTemplateForRender = {
   slot_2_height?: number | null;
   slot_2_max_chars?: number | null;
   slot_2_max_lines?: number | null;
+
+  slot_3_x?: number | null;
+  slot_3_y?: number | null;
+  slot_3_width?: number | null;
+  slot_3_height?: number | null;
+  slot_3_max_chars?: number | null;
+  slot_3_max_lines?: number | null;
 };
 
 type SlotTexts = {
   slot_1_text: string;
   slot_2_text?: string | null;
+  slot_3_text?: string | null;
 };
 
 function escapeXML(str: unknown) {
@@ -66,7 +74,10 @@ function getTextAnchor(alignment: string | null | undefined) {
   return "middle";
 }
 
-function getXPosition(slot: { x: number; width: number }, alignment: string) {
+function getXPosition(
+  slot: { x: number; width: number },
+  alignment: string
+) {
   if (alignment === "left") return slot.x + 20;
   if (alignment === "right") return slot.x + slot.width - 20;
   return slot.x + slot.width / 2;
@@ -132,6 +143,7 @@ function buildSVG(template: MemeTemplateForRender, slotTexts: SlotTexts) {
 
   const slot1Text = slotTexts.slot_1_text || "";
   const slot2Text = slotTexts.slot_2_text || "";
+  const slot3Text = slotTexts.slot_3_text || "";
 
   const slots: Array<{
     text: string;
@@ -159,6 +171,15 @@ function buildSVG(template: MemeTemplateForRender, slotTexts: SlotTexts) {
       y: template.slot_2_y,
       width: template.slot_2_width,
       height: template.slot_2_height,
+    },
+    {
+      text: slot3Text,
+      maxChars: template.slot_3_max_chars ?? 20,
+      maxLines: template.slot_3_max_lines ?? 2,
+      x: template.slot_3_x,
+      y: template.slot_3_y,
+      width: template.slot_3_width,
+      height: template.slot_3_height,
     },
   ].filter(
     (slot) =>
@@ -196,10 +217,12 @@ export async function renderMemePNGFromTemplate(params: {
   template: MemeTemplateForRender;
   topText: string;
   bottomText: string | null;
+  slot_3_text?: string;
 }) {
   const svg = buildSVG(params.template, {
     slot_1_text: params.topText,
     slot_2_text: params.bottomText ?? "",
+    slot_3_text: params.slot_3_text ?? "",
   });
 
   const svgBuffer = Buffer.from(svg);
