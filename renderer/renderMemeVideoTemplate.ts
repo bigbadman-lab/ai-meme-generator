@@ -98,6 +98,20 @@ function isDrawtextUnavailable(error: unknown): boolean {
   );
 }
 
+/** H.264 + yuv420p is what QuickTime / Apple players expect for broad MP4 compatibility. */
+const H264_QUICKTIME_FRIENDLY = [
+  "-c:v",
+  "libx264",
+  "-preset",
+  "veryfast",
+  "-crf",
+  "18",
+  "-pix_fmt",
+  "yuv420p",
+  "-movflags",
+  "+faststart",
+] as const;
+
 export async function renderMemeMP4FromTemplate(params: {
   baseVideoBuffer: Buffer;
   template: MemeVideoTemplateForRender;
@@ -159,16 +173,9 @@ export async function renderMemeMP4FromTemplate(params: {
           inputPath,
           "-vf",
           drawtext,
-          "-c:v",
-          "libx264",
-          "-preset",
-          "veryfast",
-          "-crf",
-          "18",
+          ...H264_QUICKTIME_FRIENDLY,
           "-c:a",
           "copy",
-          "-movflags",
-          "+faststart",
           outputPath,
         ],
         { stdio: "pipe" }
@@ -195,16 +202,9 @@ export async function renderMemeMP4FromTemplate(params: {
             overlayPath,
             "-filter_complex",
             "[0:v][1:v]overlay=0:0:format=auto",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "18",
+            ...H264_QUICKTIME_FRIENDLY,
             "-c:a",
             "copy",
-            "-movflags",
-            "+faststart",
             outputPath,
           ],
           { stdio: "pipe" }
