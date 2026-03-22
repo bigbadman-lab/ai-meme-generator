@@ -552,8 +552,48 @@ function interLineSquarePhrasePenalty(prevLine: string, nextLine: string): numbe
   return p;
 }
 
-function scoreSquareTextLayout(lines: string[], maxChars: number): number {
+/** Prefer fewer lines for medium-length square_text (aligns with wrapLineBudget in renderer). */
+function preferredMaxLinesForSquare(textLen: number): number {
+  if (textLen <= 140) return 3;
+  if (textLen <= 260) return 4;
+  if (textLen <= 400) return 5;
+  return 16;
+}
+
+const SQUARE_LINE_COUNT_OVER_PREFER = 15;
+/** Soften slideshow “equal line length” pull — wide meme lines beat a narrow balanced stack. */
+const SQUARE_BALANCE_RELIEF = 0.24;
+/** Penalize early lines that use far below maxChars (ragged narrow stacks). */
+const SQUARE_SHORT_LINE_RATIO = 0.52;
+const SQUARE_SHORT_LINE_PENALTY = 7;
+
+function scoreSquareTextLayout(
+  lines: string[],
+  maxChars: number,
+  textLen: number
+): number {
   let s = scoreSlideshowLayout(lines, maxChars);
+
+  const lens = lines.map((l) => l.length);
+  const mean = lens.reduce((a, b) => a + b, 0) / Math.max(1, lens.length);
+  const variance =
+    lens.reduce((acc, len) => acc + (len - mean) ** 2, 0) / Math.max(1, lens.length);
+  s -= SQUARE_BALANCE_RELIEF * Math.sqrt(variance);
+
+  const pref = preferredMaxLinesForSquare(textLen);
+  if (lines.length > pref) {
+    s += SQUARE_LINE_COUNT_OVER_PREFER * (lines.length - pref);
+  }
+
+  if (lines.length >= 2 && maxChars > 0) {
+    for (let i = 0; i < lines.length - 1; i++) {
+      const L = (lines[i] ?? "").length;
+      if (L < maxChars * SQUARE_SHORT_LINE_RATIO) {
+        s += SQUARE_SHORT_LINE_PENALTY;
+      }
+    }
+  }
+
   for (let i = 0; i < lines.length - 1; i++) {
     s += interLineSquarePhrasePenalty(lines[i] ?? "", lines[i + 1] ?? "");
   }
@@ -562,13 +602,14 @@ function scoreSquareTextLayout(lines: string[], maxChars: number): number {
 
 function pickBestSquareTextLayout(
   candidates: string[][],
-  maxChars: number
+  maxChars: number,
+  textLen: number
 ): string[] {
   let best = candidates[0]!;
-  let bestScore = scoreSquareTextLayout(best, maxChars);
+  let bestScore = scoreSquareTextLayout(best, maxChars, textLen);
   for (let i = 1; i < candidates.length; i++) {
     const c = candidates[i]!;
-    const sc = scoreSquareTextLayout(c, maxChars);
+    const sc = scoreSquareTextLayout(c, maxChars, textLen);
     if (sc < bestScore) {
       bestScore = sc;
       best = c;
@@ -639,7 +680,7 @@ export function wrapSquareTextMemeLines(
     return greedy;
   }
 
-  return pickBestSquareTextLayout(candidates, maxChars);
+  return pickBestSquareTextLayout(candidates, maxChars, normalized.length);
 }
 
 /**

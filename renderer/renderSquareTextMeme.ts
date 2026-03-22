@@ -11,17 +11,19 @@ const LINE_HEIGHT_STACK = Math.round(FONT_SIZE * 1.08);
 const BLOCK_GAP = Math.round(FONT_SIZE * 0.68);
 
 /**
- * Primary wrap driver: target max characters per line for readability and meme-style rhythm.
- * Lower than full canvas width so long sentences split into 2–4 lines instead of one stretched line.
- * (Still a broad block vs narrow “quote column” — ~40–44 chars at 52px Arial.)
+ * Wide meme line target (~888px text band at 96px side margins, 52px Arial).
+ * Intentionally high so multi-line stacks use horizontal space like a square meme, not a quote card.
  */
-const MAX_READABILITY_CHARS_PER_LINE = 42;
+const MAX_READABILITY_CHARS_PER_LINE = 58;
 
 /**
  * If text is longer than this, require at least two lines so a single SVG line cannot
  * carry an entire long sentence (even when template max_lines was 1).
  */
-const LONG_TEXT_FORCE_MIN_LINES_CHARS = 42;
+const LONG_TEXT_FORCE_MIN_LINES_CHARS = 58;
+
+/** Inner offset from canvas edge for multi-line left edge (keeps type off the margin hairline). */
+const MULTI_LINE_PAD_X = 16;
 
 function escapeXML(str: string) {
   return String(str)
@@ -59,14 +61,29 @@ function effectiveMaxLines(requestedMaxLines: number, text: string): number {
 }
 
 /**
- * Phrase-scored word-boundary layouts (`wrapSquareTextMemeLines`) for natural meme breaks;
- * same max line length and line budget as before.
+ * Prefer 2–3 lines for medium copy (meme-wide lines); allow more only when length needs it.
+ * Always at least min lines to fit maxChars; never above template/effective ceiling.
+ */
+function wrapLineBudget(text: string, requestedMaxLines: number): number {
+  const t = normalizeText(text);
+  if (!t) return Math.min(16, Math.max(1, requestedMaxLines));
+
+  const base = effectiveMaxLines(requestedMaxLines, t);
+  const minNeeded = Math.ceil(t.length / MAX_READABILITY_CHARS_PER_LINE);
+  const softPreferMax =
+    t.length <= 140 ? 3 : t.length <= 260 ? 4 : t.length <= 400 ? 5 : 16;
+
+  return Math.max(minNeeded, Math.min(base, softPreferMax));
+}
+
+/**
+ * Phrase-scored word-boundary layouts (`wrapSquareTextMemeLines`) for natural meme breaks.
  */
 function wrapSquareTextBlock(text: string, requestedMaxLines: number): string[] {
   const t = normalizeText(text);
   if (!t) return [];
 
-  const maxLines = effectiveMaxLines(requestedMaxLines, t);
+  const maxLines = wrapLineBudget(t, requestedMaxLines);
   return wrapSquareTextMemeLines(t, MAX_READABILITY_CHARS_PER_LINE, maxLines);
 }
 
@@ -81,59 +98,7 @@ function blockHeight(lines: string[]): number {
 }
 
 /**
- * Approximate horizontal advance for Arial at 1em (no letter-spacing), summed then scaled by
- * `fontSizePx`. Used only to center the text block on the canvas; wrapping is unchanged.
- */
-function estimateArialLineWidthEm(line: string): number {
-  let em = 0;
-  for (const ch of line) {
-    if (ch === " ") {
-      em += 0.27;
-      continue;
-    }
-    const code = ch.codePointAt(0) ?? 0;
-    // Wide non-Latin / symbols: treat as ~1em so block centering isn’t wildly off.
-    if (code > 0x2e7f) {
-      em += 1.0;
-      continue;
-    }
-    if ("ijl1|!.,;:'`".includes(ch)) {
-      em += 0.185;
-      continue;
-    }
-    if ("frt".includes(ch)) {
-      em += 0.26;
-      continue;
-    }
-    if ("mwMW@%".includes(ch)) {
-      em += 0.76;
-      continue;
-    }
-    if (ch >= "A" && ch <= "Z") {
-      em += 0.57;
-      continue;
-    }
-    if (ch >= "0" && ch <= "9") {
-      em += 0.55;
-      continue;
-    }
-    em += 0.52;
-  }
-  return em;
-}
-
-function estimateTextBlockWidthPx(lines: string[], fontSizePx: number): number {
-  if (!lines.length) return 0;
-  let maxEm = 0;
-  for (const line of lines) {
-    maxEm = Math.max(maxEm, estimateArialLineWidthEm(line));
-  }
-  return maxEm * fontSizePx;
-}
-
-/**
- * Center the whole text block on the canvas; every line shares the same start X with
- * text-anchor start (left-aligned inside the block). Single-line is centered as a block.
+ * Single line: centered. Multi-line: same left edge in a wide band (meme style, not a narrow column).
  */
 function renderTextBlockLines(
   lines: string[],
@@ -143,17 +108,16 @@ function renderTextBlockLines(
     return { svgFragments: [], nextY: startY };
   }
 
-  const blockW = estimateTextBlockWidthPx(lines, FONT_SIZE);
-  const xRaw = (CANVAS - blockW) / 2;
-  // If estimate overshoots canvas (rare), avoid negative X so Sharp still renders.
-  const x = Math.max(0, xRaw);
+  const single = lines.length === 1;
+  const x = single ? CANVAS / 2 : MARGIN_X + MULTI_LINE_PAD_X;
+  const textAnchor = single ? "middle" : "start";
   const lh = blockLineHeight(lines);
 
   const fragments: string[] = [];
   let y = startY;
   for (const line of lines) {
     fragments.push(
-      `<text x="${x}" y="${y}" text-anchor="start" class="caption">${escapeXML(line)}</text>`
+      `<text x="${x}" y="${y}" text-anchor="${textAnchor}" class="caption">${escapeXML(line)}</text>`
     );
     y += lh;
   }
@@ -161,8 +125,8 @@ function renderTextBlockLines(
 }
 
 /**
- * Plain 1080×1080 PNG: white background, black Arial; readability-first wrap; blocks centered
- * horizontally with left-aligned lines inside each block.
+ * Plain 1080×1080 PNG: white background, black Arial; wide wrap + phrase scoring; single line
+ * centered, multi-line left-aligned in the full margin band.
  */
 export async function renderSquareTextMemePng(params: {
   topText: string;
