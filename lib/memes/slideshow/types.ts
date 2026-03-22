@@ -4,7 +4,7 @@
 
 export type SlideshowLayoutVariant = "layout_a" | "layout_b";
 
-export type TemplateFamily = "square_meme" | "vertical_slideshow";
+export type TemplateFamily = "square_meme" | "vertical_slideshow" | "square_text";
 
 /** Stored on meme_templates.slideshow_config (jsonb). */
 export type SlideshowTemplateConfig = {

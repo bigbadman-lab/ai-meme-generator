@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Clapperboard, ImageIcon, Smartphone } from "lucide-react";
+import { ArrowRight, Clapperboard, ImageIcon, Smartphone, Type } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { PlatformIconsRow } from "@/components/dashboard/platform-icons-row";
 
@@ -33,6 +33,15 @@ const FORMAT_OPTIONS = [
     showPlatformIcons: false,
     available: true,
     Icon: Smartphone,
+  },
+  {
+    id: "square_text",
+    label: "Square Text",
+    subtitle: "1080×1080",
+    helper: "Plain white card, black text (no template image)",
+    showPlatformIcons: true,
+    available: true,
+    Icon: Type,
   },
 ] as const;
 
@@ -66,7 +75,7 @@ export default function CreatePage() {
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {FORMAT_OPTIONS.map((option) => {
                 const isSelected = format === option.id;
                 const isDisabled = !option.available;

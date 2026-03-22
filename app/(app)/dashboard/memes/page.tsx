@@ -5,7 +5,11 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { MemeResultsSection } from "@/components/dashboard/meme-results-section";
 import { generateMoreMemes } from "@/lib/actions/memes";
 
-type OutputFormat = "square_image" | "square_video" | "vertical_slideshow";
+type OutputFormat =
+  | "square_image"
+  | "square_video"
+  | "vertical_slideshow"
+  | "square_text";
 
 function getFormatFromVariantMetadata(value: unknown): OutputFormat | null {
   if (!value || typeof value !== "object") return null;
@@ -23,7 +27,8 @@ function getFormatFromVariantMetadata(value: unknown): OutputFormat | null {
   if (
     outputFormat === "square_video" ||
     outputFormat === "square_image" ||
-    outputFormat === "vertical_slideshow"
+    outputFormat === "vertical_slideshow" ||
+    outputFormat === "square_text"
   ) {
     return outputFormat;
   }
@@ -112,6 +117,16 @@ export default async function MemesPage() {
     redirect("/dashboard/memes");
   }
 
+  async function handleGenerateMoreSquareText() {
+    "use server";
+
+    const { error } = await generateMoreMemes("square_text");
+    if (error) {
+      console.error("[memes-page] Generate more failed", { error });
+    }
+    redirect("/dashboard/memes");
+  }
+
   return (
     <DashboardShell>
       <div className="mx-auto w-full max-w-6xl">
@@ -133,6 +148,7 @@ export default async function MemesPage() {
             onGenerateMoreImages={handleGenerateMoreImages}
             onGenerateMoreVideos={handleGenerateMoreVideos}
             onGenerateMoreSlideshows={handleGenerateMoreSlideshows}
+            onGenerateMoreSquareText={handleGenerateMoreSquareText}
           />
         )}
       </div>

@@ -7,7 +7,11 @@ import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { generateMockMemes } from "@/lib/actions/memes";
 
 const inflightGenerationRuns = new Map<string, Promise<{ error: string | null }>>();
-type OutputFormat = "square_image" | "square_video" | "vertical_slideshow";
+type OutputFormat =
+  | "square_image"
+  | "square_video"
+  | "vertical_slideshow"
+  | "square_text";
 
 export default function GeneratingPage() {
   const router = useRouter();
@@ -20,7 +24,9 @@ export default function GeneratingPage() {
       ? "square_video"
       : formatParam === "vertical_slideshow"
         ? "vertical_slideshow"
-        : "square_image";
+        : formatParam === "square_text"
+          ? "square_text"
+          : "square_image";
   const hasPromotion = Boolean(promotion?.trim());
   const generationKey = `format:${format}|promotion:${promotion?.trim() ?? "__none__"}`;
 
@@ -93,7 +99,9 @@ export default function GeneratingPage() {
               ? "Using your promotion where it improves the meme."
               : format === "vertical_slideshow"
                 ? "Generating your vertical slideshow set (3–5 slides) now."
-                : `Generating a ${format === "square_video" ? "video" : "brand-led"} set for you now.`}
+                : format === "square_text"
+                  ? "Generating your square text meme set now."
+                  : `Generating a ${format === "square_video" ? "video" : "brand-led"} set for you now.`}
           </p>
         </div>
       </div>

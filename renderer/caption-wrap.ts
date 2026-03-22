@@ -260,7 +260,7 @@ function generateSlideshowWordBoundaryLayouts(
     }
   }
 
-  const kCap = Math.min(maxK, n, 4);
+  const kCap = Math.min(maxK, n);
   for (let k = 2; k <= kCap; k++) {
     dfs(0, [], k);
   }
@@ -378,6 +378,268 @@ function pickBestSlideshowLayout(
     }
   }
   return best;
+}
+
+/** Strip edge punctuation so phrase bigrams match (“choose...” → choose). */
+function normalizeWordForPhrase(raw: string): string {
+  return raw.replace(/^[^a-z0-9']+|[^a-z0-9']+$/gi, "").toLowerCase();
+}
+
+/**
+ * Square text: penalize breaks between lines that split common short collocations or
+ * strand a lead-in (e.g. “how long” / “it took”). Complements slideshow dangling-line-end
+ * scoring inside `scoreSlideshowLayout`.
+ */
+const SQUARE_BIGRAM_HEAVY = 34;
+const SQUARE_BIGRAM_MEDIUM = 15;
+const SQUARE_WEAK_END_AFTER = 18;
+
+const SQUARE_HEAVY_BIGRAM_KEYS = new Set<string>([
+  "how|long",
+  "how|much",
+  "how|many",
+  "how|far",
+  "how|old",
+  "how|soon",
+  "how|often",
+  "long|it",
+  "long|ago",
+  "long|since",
+  "long|before",
+  "long|enough",
+  "much|of",
+  "more|of",
+  "the|last",
+  "the|first",
+  "the|same",
+  "the|only",
+  "the|whole",
+  "the|next",
+  "the|other",
+  "the|best",
+  "the|worst",
+  "at|home",
+  "at|least",
+  "at|most",
+  "at|first",
+  "at|last",
+  "your|home",
+  "your|life",
+  "your|mind",
+  "my|life",
+  "my|god",
+  "her|life",
+  "his|life",
+  "our|home",
+  "as|long",
+  "as|much",
+  "so|much",
+  "so|many",
+  "out|of",
+  "up|to",
+  "all|the",
+  "each|other",
+  "one|more",
+  "no|one",
+]);
+
+const SQUARE_MEDIUM_BIGRAM_KEYS = new Set<string>([
+  "of|the",
+  "in|the",
+  "to|the",
+  "on|the",
+  "for|the",
+  "and|the",
+  "with|the",
+  "from|the",
+  "by|the",
+  "to|be",
+  "to|get",
+  "to|make",
+  "to|go",
+  "to|see",
+  "a|lot",
+  "a|little",
+  "in|a",
+  "on|a",
+  "for|a",
+  "natural|light",
+  "drafty|window",
+]);
+
+/** Line ends with a short fragment that usually wants the next word on the same line. */
+const SQUARE_WEAK_TAIL_TWO = new Set<string>([
+  "how long",
+  "how much",
+  "how many",
+  "how far",
+  "the last",
+  "the first",
+  "the same",
+  "your home",
+  "your life",
+  "at home",
+  "at least",
+  "as long",
+  "so much",
+  "so many",
+]);
+
+function interLineSquarePhrasePenalty(prevLine: string, nextLine: string): number {
+  const pl = prevLine.trim();
+  const nl = nextLine.trim();
+  if (!pl || !nl) return 0;
+
+  const prevWords = pl.split(/\s+/).filter(Boolean);
+  const nextWords = nl.split(/\s+/).filter(Boolean);
+  const last = normalizeWordForPhrase(prevWords[prevWords.length - 1] ?? "");
+  const first = normalizeWordForPhrase(nextWords[0] ?? "");
+  if (!last || !first) return 0;
+
+  const pairKey = `${last}|${first}`;
+  let p = 0;
+  if (SQUARE_HEAVY_BIGRAM_KEYS.has(pairKey)) {
+    p += SQUARE_BIGRAM_HEAVY;
+  } else if (SQUARE_MEDIUM_BIGRAM_KEYS.has(pairKey)) {
+    p += SQUARE_BIGRAM_MEDIUM;
+  }
+
+  const tail2 = `${normalizeWordForPhrase(prevWords[prevWords.length - 2] ?? "")} ${last}`.trim();
+  if (prevWords.length >= 2 && SQUARE_WEAK_TAIL_TWO.has(tail2)) {
+    p += SQUARE_WEAK_END_AFTER;
+  }
+
+  const questionLead = new Set([
+    "how",
+    "what",
+    "when",
+    "where",
+    "why",
+    "which",
+    "whose",
+  ]);
+  const okAfterQuestionLead = new Set([
+    "long",
+    "much",
+    "many",
+    "far",
+    "old",
+    "soon",
+    "often",
+    "about",
+    "to",
+    "do",
+    "does",
+    "did",
+    "is",
+    "are",
+    "was",
+    "were",
+    "way",
+    "kind",
+    "type",
+    "time",
+    "place",
+    "reason",
+    "happened",
+    "else",
+    "if",
+  ]);
+  if (questionLead.has(last) && !okAfterQuestionLead.has(first)) {
+    p += SQUARE_WEAK_END_AFTER;
+  }
+
+  return p;
+}
+
+function scoreSquareTextLayout(lines: string[], maxChars: number): number {
+  let s = scoreSlideshowLayout(lines, maxChars);
+  for (let i = 0; i < lines.length - 1; i++) {
+    s += interLineSquarePhrasePenalty(lines[i] ?? "", lines[i + 1] ?? "");
+  }
+  return s;
+}
+
+function pickBestSquareTextLayout(
+  candidates: string[][],
+  maxChars: number
+): string[] {
+  let best = candidates[0]!;
+  let bestScore = scoreSquareTextLayout(best, maxChars);
+  for (let i = 1; i < candidates.length; i++) {
+    const c = candidates[i]!;
+    const sc = scoreSquareTextLayout(c, maxChars);
+    if (sc < bestScore) {
+      bestScore = sc;
+      best = c;
+      continue;
+    }
+    if (sc === bestScore) {
+      if (c.length < best.length) {
+        best = c;
+        continue;
+      }
+      if (c.length === best.length && layoutDedupeKey(c) < layoutDedupeKey(best)) {
+        best = c;
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Square meme PNG: same width limit as greedy, but search word-boundary layouts (2..K lines),
+ * score with slideshow rhythm rules plus phrase-aware penalties between lines.
+ * Greedy layout is always a candidate. Does not change other template renderers.
+ */
+export function wrapSquareTextMemeLines(
+  text: string,
+  maxChars: number,
+  maxLines: number
+): string[] {
+  const normalized = normalizeCaptionText(text);
+  if (!normalized) return [];
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  const greedy = wrapTextGreedy(normalized, maxChars, maxLines);
+
+  const maxK = Math.max(1, Math.min(maxLines, 6));
+  const enumCap = words.length > 36 ? Math.min(maxK, 4) : maxK;
+
+  const generated = generateSlideshowWordBoundaryLayouts(
+    words,
+    maxChars,
+    enumCap
+  );
+
+  const seen = new Set<string>();
+  const candidates: string[][] = [];
+  for (const lay of generated) {
+    const k = layoutDedupeKey(lay);
+    if (!seen.has(k)) {
+      seen.add(k);
+      candidates.push(lay);
+    }
+  }
+
+  addSlideshowSentenceBoundaryLayouts(
+    normalized,
+    maxChars,
+    Math.min(enumCap, maxLines),
+    candidates,
+    seen
+  );
+
+  const gk = layoutDedupeKey(greedy);
+  if (!seen.has(gk)) {
+    candidates.push(greedy);
+  }
+
+  if (candidates.length === 0) {
+    return greedy;
+  }
+
+  return pickBestSquareTextLayout(candidates, maxChars);
 }
 
 /**

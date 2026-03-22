@@ -4,8 +4,15 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, LoaderCircle } from "lucide-react";
 import { regenerateTemplateIdea } from "@/lib/actions/memes";
-import { DownloadMemeButton } from "@/components/dashboard/download-meme-button";
-import { PlatformIconsRow } from "@/components/dashboard/platform-icons-row";
+import type { MemeOutputFormat } from "@/lib/memes/meme-output-formats";
+import {
+  DownloadMemeButton,
+  DownloadSlideshowButton,
+} from "@/components/dashboard/download-meme-button";
+import {
+  PlatformIconsRow,
+  SlideshowPlatformIconsRow,
+} from "@/components/dashboard/platform-icons-row";
 
 const ACCENTS = [
   "from-indigo-500/30 via-sky-500/10 to-transparent",
@@ -70,6 +77,21 @@ type SlideshowSlidePreview = {
   text: string;
   layout_variant: string;
 };
+
+function getOutputFormatForRegeneration(
+  variant: MemeRow,
+  slideshowSlides: SlideshowSlidePreview[] | null
+): MemeOutputFormat {
+  if (slideshowSlides?.length) return "vertical_slideshow";
+  const raw = variant.variant_metadata;
+  if (raw && typeof raw === "object" && "output_format" in raw) {
+    const o = String((raw as { output_format?: unknown }).output_format ?? "")
+      .trim()
+      .toLowerCase();
+    if (o === "square_text") return "square_text";
+  }
+  return isVideoMemeVariant(variant) ? "square_video" : "square_image";
+}
 
 function getSlideshowSlides(variant: MemeRow): SlideshowSlidePreview[] | null {
   const raw = variant.variant_metadata;
@@ -319,14 +341,10 @@ function MemeTemplateCard({
 
   function handleMoreIdeas() {
     if (!group.templateId) return;
-    const outputFormat:
-      | "square_image"
-      | "square_video"
-      | "vertical_slideshow" = slideshowSlides?.length
-      ? "vertical_slideshow"
-      : isVideoAsset
-        ? "square_video"
-        : "square_image";
+    const outputFormat = getOutputFormatForRegeneration(
+      selectedVariant,
+      slideshowSlides
+    );
 
     startRegeneration(async () => {
       const result = await regenerateTemplateIdea(
@@ -455,7 +473,11 @@ function MemeTemplateCard({
               <span className="text-[11px] leading-relaxed text-stone-500">
                 {slideshowSlides?.length ? "1080×1920 slides" : "1080×1080"}
               </span>
-              {!slideshowSlides?.length && <PlatformIconsRow className="gap-1.5" />}
+              {slideshowSlides?.length ? (
+                <SlideshowPlatformIconsRow className="gap-1.5" />
+              ) : (
+                <PlatformIconsRow className="gap-1.5" />
+              )}
             </div>
           </div>
           {selectedIdeaGroup.variants.length > 1 && (
@@ -544,13 +566,7 @@ function MemeTemplateCard({
         </div>
 
         <div className="mt-4 flex flex-col gap-3">
-          <div
-            className={
-              slideshowSlides?.length
-                ? "flex flex-col gap-3"
-                : "grid gap-3 sm:grid-cols-2"
-            }
-          >
+          <div className="grid gap-3 sm:grid-cols-2">
             <button
               type="button"
               onClick={handleMoreIdeas}
@@ -561,19 +577,11 @@ function MemeTemplateCard({
               {isRegenerating ? "Generating..." : "More ideas"}
             </button>
             {slideshowSlides?.length ? (
-              <div className="flex flex-wrap gap-2">
-                {slideshowSlides.map((s) => (
-                  <DownloadMemeButton
-                    key={`dl-${s.index}`}
-                    imageUrl={s.image_url}
-                    fallbackHref={s.image_url}
-                    downloadFilename={`${selectedVariant.id}-slide-${s.index + 1}.png`}
-                    className="inline-flex items-center justify-center rounded-xl border border-indigo-400/30 bg-indigo-500/20 px-3 py-2 text-xs font-medium text-indigo-100 hover:bg-indigo-500/30"
-                  >
-                    Slide {s.index + 1}
-                  </DownloadMemeButton>
-                ))}
-              </div>
+              <DownloadSlideshowButton
+                slides={slideshowSlides.map((s) => ({ image_url: s.image_url }))}
+                baseFilename={selectedVariant.id}
+                className="cta-funky inline-flex items-center justify-center rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white shadow-[0_10px_30px_rgba(99,102,241,0.35)] hover:bg-indigo-400"
+              />
             ) : (
               <DownloadMemeButton
                 imageUrl={selectedVariant.image_url ?? null}

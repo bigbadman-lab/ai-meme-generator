@@ -19,7 +19,11 @@ type MemeRow = {
   batch_number: number | null;
 };
 
-type ContinuationFormat = "square_image" | "square_video" | "vertical_slideshow";
+type ContinuationFormat =
+  | "square_image"
+  | "square_video"
+  | "vertical_slideshow"
+  | "square_text";
 
 type Props = {
   memes: MemeRow[];
@@ -28,11 +32,13 @@ type Props = {
   onGenerateMoreImages: () => void;
   onGenerateMoreVideos: () => void;
   onGenerateMoreSlideshows: () => void;
+  onGenerateMoreSquareText: () => void;
 };
 
 function defaultFormatLabel(f: ContinuationFormat): string {
   if (f === "square_video") return "videos";
   if (f === "vertical_slideshow") return "slideshows";
+  if (f === "square_text") return "text memes";
   return "images";
 }
 
@@ -41,11 +47,13 @@ function GenerateMoreButton({
   onGenerateMoreImages,
   onGenerateMoreVideos,
   onGenerateMoreSlideshows,
+  onGenerateMoreSquareText,
 }: {
   defaultContinuationFormat: ContinuationFormat;
   onGenerateMoreImages: () => void;
   onGenerateMoreVideos: () => void;
   onGenerateMoreSlideshows: () => void;
+  onGenerateMoreSquareText: () => void;
 }) {
   const { pending } = useFormStatus();
   const label = defaultFormatLabel(defaultContinuationFormat);
@@ -93,6 +101,14 @@ function GenerateMoreButton({
           >
             Generate more slideshows
           </button>
+          <button
+            type="submit"
+            formAction={onGenerateMoreSquareText}
+            disabled={pending}
+            className="block w-full rounded-lg px-3 py-2 text-left text-sm text-stone-200 transition hover:bg-white/10 disabled:opacity-70"
+          >
+            Generate more square text
+          </button>
         </div>
       </details>
     </div>
@@ -136,6 +152,7 @@ export function MemeResultsSection({
   onGenerateMoreImages,
   onGenerateMoreVideos,
   onGenerateMoreSlideshows,
+  onGenerateMoreSquareText,
 }: Props) {
   return (
     <form action={onGenerateMore}>
@@ -157,6 +174,7 @@ export function MemeResultsSection({
             onGenerateMoreImages={onGenerateMoreImages}
             onGenerateMoreVideos={onGenerateMoreVideos}
             onGenerateMoreSlideshows={onGenerateMoreSlideshows}
+            onGenerateMoreSquareText={onGenerateMoreSquareText}
           />
         </div>
       </div>

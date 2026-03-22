@@ -7,6 +7,8 @@ import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js
 import { randomUUID } from "node:crypto";
 import { renderMemePNGFromTemplate } from "@/renderer/renderMemeTemplate";
 import { renderMemeMP4FromTemplate } from "@/renderer/renderMemeVideoTemplate";
+import { renderSquareTextMemePng } from "@/renderer/renderSquareTextMeme";
+import type { MemeOutputFormat } from "@/lib/memes/meme-output-formats";
 import { getActiveImportantDay } from "@/lib/memes/variants/get-active-important-day";
 import { runVerticalSlideshowGeneration } from "@/lib/memes/slideshow/generate-vertical-slideshow";
 
@@ -17,7 +19,7 @@ export async function generateMockMemes(
     excludeExistingUserTemplates?: boolean;
     forcedTemplateId?: string;
     forceStandardVariant?: boolean;
-    outputFormat?: "square_image" | "square_video" | "vertical_slideshow";
+    outputFormat?: MemeOutputFormat;
   }
 ): Promise<{ error: string | null }> {
   try {
@@ -38,6 +40,7 @@ export async function generateMockMemes(
   const TITLE_MAX_CHARS = 45;
   const INITIAL_TEMPLATE_BATCH_SIZE = 3;
   const ORDERED_TEMPLATE_SLUG_POOL = [
+    "square-text-v1",
     "victorian-nobody-me",
     "drake",
     "woman-yelling-cat",
@@ -102,7 +105,7 @@ export async function generateMockMemes(
 
   const promotion = normalizePromotionContext(promotionContext);
   const batchSize = options?.limit ?? INITIAL_TEMPLATE_BATCH_SIZE;
-  const outputFormat = options?.outputFormat ?? "square_image";
+  const outputFormat: MemeOutputFormat = options?.outputFormat ?? "square_image";
   const targetAssetType = outputFormat === "square_video" ? "video" : "image";
   const forcedTemplateId = String(options?.forcedTemplateId ?? "").trim() || null;
   const forceStandardVariant = Boolean(options?.forceStandardVariant);
@@ -548,6 +551,8 @@ export async function generateMockMemes(
     template_id: string;
     template_name: string;
     slug: string;
+    /** Drives generation/render routing (square_meme | vertical_slideshow | square_text). */
+    template_family: string;
     template_type: TemplateType;
     asset_type: "image" | "video";
     media_format: string | null;
@@ -718,6 +723,77 @@ Slot 1:
 - max_chars: ${template.slot_1_max_chars}
 - max_lines: ${template.slot_1_max_lines}`;
     }
+  };
+
+  /** LLM contract for template_family square_text only (plain text card; no base image/video). */
+  const getSquareTextFamilyPromptSection = (
+    template: CompatibleTemplate
+  ): string => {
+    if (template.template_family !== "square_text") return "";
+
+    return `SQUARE TEXT MEME FORMAT (this row is template_family square_text — different from image/video memes):
+- There is NO reaction image or video: only black text on a white 1080×1080 square. The words must carry the entire idea.
+- This is NOT a top-caption layered over a meme picture. Do not write as if something visual will complete the joke.
+
+1) COMPLETE STANDALONE THOUGHT (default)
+- top_text must be ONE complete sentence or one complete standalone thought that reads finished on its own.
+- No trailing commas. No clause that obviously waits for a punchline or picture.
+- Unless template_logic explicitly requires a different mechanic, avoid fragment-style openers such as: "When...", "When you realize...", "POV...", "Me when...", "That moment when..." — they usually read incomplete on a blank card.
+- Prefer a direct statement, sharp observation, contradiction, or "too real" homeowner line.
+
+2) NO GENERIC PROMO / AD COPY ON THE CARD
+- top_text must not sound like marketing, brochures, or CTAs.
+- Avoid lines like: "your home needs a window upgrade", "transform your living space", "improve your home", "upgrade your windows", "expert window solutions", or similar polished sales language.
+- Brand context informs the TOPIC (e.g. homes, windows, comfort), not the tone of an ad headline.
+
+3) MEME-NATIVE, RELATABLE, SPECIFIC
+- Aim for homeowner truths, small frustrations, sharp observations, specific realities — things people repost because they feel true, not because they are being sold something.
+- Prefer concrete, specific angles over vague benefits (e.g. weak: "Your home needs improvement." Stronger direction: specific cause-and-effect or lived-detail truths tied to the audience).
+- Use business context to pick WHAT to talk about, not to write a slogan.
+
+4) TONE
+- Closer to: relatable complaint, clever observation, "too real" thought, dry truth.
+- Not: branded headline, sales message, corporate caption, or generic inspirational filler.
+
+5) TWO SLOTS (only if this template uses two)
+- If two slots: each block is still plain text on white — both must be complete thoughts unless template_logic defines a deliberate pair. No "setup waiting for image."
+
+6) QUALITY CHECK (before you return JSON)
+- Is top_text a complete thought on its own?
+- Would it work alone on a plain white background with no image?
+- Does it sound like a meme observation, not a business slogan?
+- Is it specific enough to feel true?
+- If not, rewrite before returning.
+
+7) PROMO VARIANTS
+- Even when promo_mode is active, do not turn top_text into offer/CTA headline copy. Keep the card meme-first; use post_caption for softer promo context if needed. Never invent promo facts.
+
+`;
+  };
+
+  const getSquareTextSlotGuidance = (template: CompatibleTemplate): string => {
+    const slot1Role = template.slot_1_role || "slot_1";
+    const slot2Role = template.slot_2_role || "slot_2";
+    if (template.isTwoSlot) {
+      return `Slot behavior for square_text (plain text card):
+Slot 1:
+- role: ${slot1Role}
+- One complete, standalone on-card message (see SQUARE TEXT MEME FORMAT above). Not a reaction-image setup.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}
+
+Slot 2:
+- role: ${slot2Role}
+- Second complete text block on the same card (also meme-native, not ad copy).
+- max_chars: ${template.slot_2_max_chars}
+- max_lines: ${template.slot_2_max_lines}`;
+    }
+    return `Slot behavior for square_text (plain text card):
+Slot 1:
+- role: ${slot1Role}
+- The entire visible meme: one complete standalone thought (see SQUARE TEXT MEME FORMAT). bottom_text must be null.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}`;
   };
 
   const getMemeMechanicGuidance = (template: CompatibleTemplate): string => {
@@ -956,9 +1032,10 @@ ${getTemplateTypeRetryShape()}`;
       .filter((t: any) => {
         const family = String(t.template_family ?? "square_meme").trim();
         if (family === "vertical_slideshow") return false;
-        return true;
-      })
-      .filter((t: any) => {
+        if (outputFormat === "square_text") {
+          return family === "square_text";
+        }
+        if (family === "square_text") return false;
         const assetType = String(t.asset_type ?? "image").trim().toLowerCase();
         return assetType === targetAssetType;
       })
@@ -978,6 +1055,7 @@ ${getTemplateTypeRetryShape()}`;
           template_id,
           template_name: String(t.template_name ?? t.name ?? "").trim(),
           slug: String(t.slug ?? "").trim(),
+          template_family: String(t.template_family ?? "square_meme").trim(),
           template_type: templateType,
           asset_type:
             String(t.asset_type ?? "image").trim().toLowerCase() === "video"
@@ -1063,7 +1141,9 @@ ${getTemplateTypeRetryShape()}`;
       error:
         outputFormat === "square_video"
           ? "No active square video templates found."
-          : "No compatible meme templates found.",
+          : outputFormat === "square_text"
+            ? "No active square text templates found."
+            : "No compatible meme templates found.",
     };
   }
 
@@ -1374,7 +1454,12 @@ IMPORTANT DAY WRITING RULES
     const prompt = `You generate brand-safe meme captions that follow a specific template.
 
 Hard constraints (must obey):
-- top_text MUST be <= ${template.slot_1_max_chars} characters and be a complete, finishable phrase (no mid-word cut-offs).
+${
+  template.template_family === "square_text"
+    ? `- For square_text: top_text must read as a finished standalone thought on a plain text card (not a teaser line for an image). Avoid trailing commas that imply more is coming.
+`
+    : ""
+}- top_text MUST be <= ${template.slot_1_max_chars} characters and be a complete, finishable phrase (no mid-word cut-offs).
 - If the phrase would exceed the limit, rewrite it shorter and simpler. Never output an incomplete fragment.
 - top_text should ideally be <= ${topIdeal} characters.
 - bottom_text MUST be <= ${template.slot_2_max_chars} characters when present, and be complete. If it would exceed the limit, rewrite shorter and simpler.
@@ -1410,9 +1495,10 @@ Template metadata:
 - promotion_fit: ${template.promotion_fit}
 - example_output: ${template.example_output}
 
-${getTemplateTypeWritingGuidance(template)}
+${getSquareTextFamilyPromptSection(template)}
+${template.template_family === "square_text" ? "" : getTemplateTypeWritingGuidance(template)}
 
-${getSlotWritingGuidance(template)}
+${template.template_family === "square_text" ? getSquareTextSlotGuidance(template) : getSlotWritingGuidance(template)}
 
 ${isThreeSlot
   ? `Three-slot output mapping:
@@ -1436,6 +1522,11 @@ Rules:
 - Avoid bland, generic filler. Be specific to the brand + audience.
 - Use the template_logic and meme_mechanic to choose the angle. emotion_style sets tone.
 - Respect the template_type. Do not write every template like a generic top/bottom caption meme.
+${
+  template.template_family === "square_text"
+    ? `- For square_text: top_text is the whole meme on a blank card — obey the SQUARE TEXT MEME FORMAT block above (complete thought, meme-native, not promo fragment lines).`
+    : ""
+}
 - Meme quality matters more than forcing the promotion into the caption.
 - Never sound like a stiff ad, slogan, or generic marketing copy.
 - If you reference the promotion, preserve exact facts from the promo context. Never invent or alter discount amounts, dates, pricing, or offer terms.
@@ -1734,15 +1825,27 @@ ${isThreeSlot
     const promoMode = derivePromoMode(template);
     const fallbackReplacementUsed = failedCount > 0;
     const variantMetadata =
-      variantType === "important_day"
-        ? {
-            important_day_key: variantContext.importantDayKey,
-            important_day_label: variantContext.importantDayLabel,
-            media_type: template.asset_type === "video" ? "video" : "image",
-          }
-        : {
-            media_type: template.asset_type === "video" ? "video" : "image",
-          };
+      template.template_family === "square_text"
+        ? variantType === "important_day"
+          ? {
+              important_day_key: variantContext.importantDayKey,
+              important_day_label: variantContext.importantDayLabel,
+              media_type: "image" as const,
+              output_format: "square_text" as const,
+            }
+          : {
+              media_type: "image" as const,
+              output_format: "square_text" as const,
+            }
+        : variantType === "important_day"
+          ? {
+              important_day_key: variantContext.importantDayKey,
+              important_day_label: variantContext.importantDayLabel,
+              media_type: template.asset_type === "video" ? "video" : "image",
+            }
+          : {
+              media_type: template.asset_type === "video" ? "video" : "image",
+            };
     let generated:
       | {
           title: string;
@@ -1821,7 +1924,31 @@ ${isThreeSlot
 
     let imageUrl: string | null = null;
     try {
-      if (template.asset_type === "video") {
+      if (template.template_family === "square_text") {
+        const pngBuffer = await renderSquareTextMemePng({
+          topText: generated.top_text,
+          bottomText: generated.bottom_text,
+          slot1MaxLines: template.slot_1_max_lines,
+          slot2MaxLines: template.isTwoSlot ? template.slot_2_max_lines : 0,
+        });
+
+        const objectPath = `generated_memes/${user.id}/${template.template_id}/${randomUUID()}.png`;
+        const { error: uploadError } = await adminSupabase.storage
+          .from(generatedMemeBucket)
+          .upload(objectPath, pngBuffer, {
+            contentType: "image/png",
+            upsert: true,
+          });
+
+        if (uploadError) {
+          throw new Error(uploadError.message || `Failed to upload square text meme`);
+        }
+
+        const publicUrlRes = adminSupabase.storage
+          .from(generatedMemeBucket)
+          .getPublicUrl(objectPath);
+        imageUrl = publicUrlRes.data.publicUrl ?? null;
+      } else if (template.asset_type === "video") {
         const sourceVideoPath = template.source_media_path ?? "";
         if (!sourceVideoPath) {
           throw new Error("Video template is missing source_media_path");
@@ -2038,7 +2165,7 @@ ${isThreeSlot
 }
 
 export async function generateMoreMemes(
-  outputFormat?: "square_image" | "square_video" | "vertical_slideshow"
+  outputFormat?: MemeOutputFormat
 ): Promise<{ error: string | null }> {
   const result = await generateMockMemes(undefined, {
     limit: 3,
@@ -2052,7 +2179,7 @@ export async function generateMoreMemes(
 
 export async function regenerateTemplateIdea(
   templateId: string,
-  outputFormat?: "square_image" | "square_video" | "vertical_slideshow"
+  outputFormat?: MemeOutputFormat
 ): Promise<{ error: string | null }> {
   const result = await generateMockMemes(undefined, {
     limit: 1,
