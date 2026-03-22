@@ -3,6 +3,7 @@ import {
   normalizeGenerationMode,
   type GenerationMode,
 } from "@/lib/onboarding/generation-mode";
+import { inferEnglishVariantFromOnboarding } from "@/lib/onboarding/english-variant";
 import { NextResponse } from "next/server";
 
 type DraftProfile = {
@@ -257,6 +258,9 @@ export async function GET(request: Request) {
                 what_you_do: cleaned.clean.what_you_do || null,
                 audience: cleaned.clean.audience || null,
                 country: cleaned.clean.country || null,
+                english_variant: inferEnglishVariantFromOnboarding({
+                  country: cleaned.clean.country,
+                }),
                 generation_mode:
                   normalizeGenerationMode(cleaned.clean.generation_mode) ??
                   "on_demand",

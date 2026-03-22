@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/actions/profile";
+import {
+  englishVariantPromptInstruction,
+  resolveEffectiveEnglishVariant,
+} from "@/lib/onboarding/english-variant";
 import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { renderMemePNGFromTemplate } from "@/renderer/renderMemeTemplate";
@@ -752,31 +756,40 @@ Slot 1:
 - Unless template_logic explicitly requires a different mechanic, avoid fragment-style openers such as: "When...", "When you realize...", "POV...", "Me when...", "That moment when..." — they usually read incomplete on a blank card.
 - Prefer a direct statement, sharp observation, contradiction, or "too real" homeowner line.
 
-2) NO GENERIC PROMO / AD COPY ON THE CARD
+2) ONE CLEAN LINE (NO "WRITTEN" OR DASH-SPLIT THOUGHTS)
+- The line should read as one natural thought: a single clean meme-native sentence, conversational and direct.
+- Do NOT use em dashes (Unicode U+2014), en dashes (U+2013), or a hyphen used as a dramatic pivot mid-sentence.
+- Do NOT use split-thought structures such as "X — Y" or "X - Y" where a dash turns one idea into two stitched halves (e.g. analogy setup, then a second clause "everyone has an opinion, but only you...").
+- Avoid dash-led pivots, compare-and-explain phrasing, and mini-essay flow; those read like copywriting or brand blog prose, not a square text meme.
+- Avoid heavy "it's like / feels like searching for..." analogy chains; prefer one blunt observation or relatable line stated simply.
+- Goal: a clean thought, a natural observation, a direct meme-native line people would actually repost.
+
+3) NO GENERIC PROMO / AD COPY ON THE CARD
 - top_text must not sound like marketing, brochures, or CTAs.
 - Avoid lines like: "your home needs a window upgrade", "transform your living space", "improve your home", "upgrade your windows", "expert window solutions", or similar polished sales language.
 - Brand context informs the TOPIC (e.g. homes, windows, comfort), not the tone of an ad headline.
 
-3) MEME-NATIVE, RELATABLE, SPECIFIC
+4) MEME-NATIVE, RELATABLE, SPECIFIC
 - Aim for homeowner truths, small frustrations, sharp observations, specific realities — things people repost because they feel true, not because they are being sold something.
 - Prefer concrete, specific angles over vague benefits (e.g. weak: "Your home needs improvement." Stronger direction: specific cause-and-effect or lived-detail truths tied to the audience).
 - Use business context to pick WHAT to talk about, not to write a slogan.
 
-4) TONE
+5) TONE
 - Closer to: relatable complaint, clever observation, "too real" thought, dry truth.
 - Not: branded headline, sales message, corporate caption, or generic inspirational filler.
 
-5) TWO SLOTS (only if this template uses two)
+6) TWO SLOTS (only if this template uses two)
 - If two slots: each block is still plain text on white — both must be complete thoughts unless template_logic defines a deliberate pair. No "setup waiting for image."
 
-6) QUALITY CHECK (before you return JSON)
+7) QUALITY CHECK (before you return JSON)
 - Is top_text a complete thought on its own?
 - Would it work alone on a plain white background with no image?
 - Does it sound like a meme observation, not a business slogan?
 - Is it specific enough to feel true?
+- Is it one clean line without em/en dash pivots, "X — Y" splits, or written analogy chains?
 - If not, rewrite before returning.
 
-7) PROMO VARIANTS
+8) PROMO VARIANTS
 - Even when promo_mode is active, do not turn top_text into offer/CTA headline copy. Keep the card meme-first; use post_caption for softer promo context if needed. Never invent promo facts.
 
 `;
@@ -1483,6 +1496,7 @@ Brand context:
 - what_you_do: ${what_you_do}
 - audience: ${audience}
 - country: ${country}
+- ${englishVariantPromptInstruction(resolveEffectiveEnglishVariant(profile.english_variant))}
 
 Promotion context:
 - normalized_promotion: ${variantContext.promoText ?? "None"}

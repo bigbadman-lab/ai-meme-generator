@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/actions/profile";
+import {
+  englishVariantPromptInstruction,
+  resolveEffectiveEnglishVariant,
+} from "@/lib/onboarding/english-variant";
 import { renderVerticalSlideshowSlidePng } from "@/renderer/renderVerticalSlideshowSlide";
 import type { VerticalSlideshowRenderStyle } from "@/renderer/renderVerticalSlideshowSlide";
 import { getActiveImportantDay } from "@/lib/memes/variants/get-active-important-day";
@@ -430,6 +434,7 @@ Controlled vocabulary (use these exact lowercase_snake literals; no free-form sy
 - what_you_do: ${profile.what_you_do ?? ""}
 - audience: ${profile.audience ?? ""}
 - country: ${profile.country ?? ""}
+- ${englishVariantPromptInstruction(resolveEffectiveEnglishVariant(profile.english_variant))}
 
 === PROMOTION (this generation) ===
 Promotion context: ${promotion ?? "None"}

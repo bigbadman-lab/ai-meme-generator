@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { inferEnglishVariantFromOnboarding } from "@/lib/onboarding/english-variant";
 
 export type Profile = {
   id: string;
@@ -9,6 +10,8 @@ export type Profile = {
   what_you_do: string | null;
   audience: string | null;
   country: string | null;
+  /** en-GB | en-US; null = treat as en-GB in app */
+  english_variant: string | null;
   /** content_pack | on_demand; null = treat as on_demand */
   generation_mode: string | null;
   content_pack_unlocked_at: string | null;
@@ -62,6 +65,9 @@ export async function upsertProfile(input: UpsertProfileInput): Promise<{ error:
     what_you_do: input.what_you_do.trim() || null,
     audience: input.audience.trim() || null,
     country: input.country.trim() || null,
+    english_variant: inferEnglishVariantFromOnboarding({
+      country: input.country,
+    }),
     updated_at: new Date().toISOString(),
     ...(input.completeOnboarding
       ? { onboarding_completed_at: new Date().toISOString() }

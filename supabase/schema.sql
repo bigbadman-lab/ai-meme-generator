@@ -15,6 +15,10 @@ create table if not exists public.profiles (
   ),
   content_pack_unlocked_at timestamptz,
   content_pack_last_completed_batch integer default 0,
+  english_variant text check (
+    english_variant is null
+    or english_variant in ('en-GB', 'en-US')
+  ),
   onboarding_completed_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
