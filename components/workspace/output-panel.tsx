@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { WorkspaceJob, WorkspaceOutput } from "@/lib/actions/workspace";
 import { BlockedAuthCard } from "@/components/workspace/blocked-auth-card";
 import { BlockedPaymentCard } from "@/components/workspace/blocked-payment-card";
+import canvas2Background from "@/assets/canvas2.jpg";
 
 function mediaTypeFromUrl(url: string): "video" | "image" {
   return /\.(mp4|webm|m4v)(\?|#|$)/i.test(url) ? "video" : "image";
@@ -64,7 +65,7 @@ export function OutputPanel({
 
   if (!latestJob) {
     return (
-      <div className="flex min-h-[66vh] items-center justify-center rounded-3xl border border-stone-200 bg-stone-50 p-6 text-sm text-stone-500">
+      <div className="flex min-h-[44vh] items-center justify-center rounded-3xl border border-stone-200 bg-stone-50 p-5 text-sm text-stone-500 sm:min-h-[52vh] lg:min-h-[66vh]">
         Waiting for your first generation request.
       </div>
     );
@@ -72,7 +73,7 @@ export function OutputPanel({
 
   if ((latestJob.status === "queued" || latestJob.status === "running") && outputs.length === 0) {
     return (
-      <div className="flex min-h-[66vh] items-center justify-center rounded-3xl border border-stone-200 bg-stone-50 p-6 text-center text-sm text-stone-600">
+      <div className="flex min-h-[44vh] items-center justify-center rounded-3xl border border-stone-200 bg-stone-50 p-5 text-center text-sm text-stone-600 sm:min-h-[52vh] lg:min-h-[66vh]">
         <div className="max-w-md">
           <div className="relative mx-auto mb-5 h-14 w-14">
             <div className="absolute inset-0 rounded-full border border-sky-200/70 bg-sky-100/30 animate-pulse" />
@@ -95,7 +96,7 @@ export function OutputPanel({
   if (gateState === "anonymous_blocked") {
     return (
       <div
-        className="relative flex min-h-[66vh] items-center justify-center overflow-hidden rounded-3xl border border-stone-200 p-6"
+        className="relative flex min-h-[44vh] items-center justify-center overflow-hidden rounded-3xl border border-stone-200 p-5 sm:min-h-[52vh] lg:min-h-[66vh] lg:p-6"
         style={{
           backgroundImage: "url('/assets/canvas.jpg')",
           backgroundSize: "cover",
@@ -111,8 +112,15 @@ export function OutputPanel({
 
   if (gateState === "authenticated_plan_required") {
     return (
-      <div className="flex min-h-[66vh] items-center justify-center rounded-3xl border border-stone-200 bg-stone-50 p-6">
-        <div className="w-full max-w-xl">
+      <div
+        className="relative flex min-h-[44vh] items-center justify-center overflow-hidden rounded-3xl border border-stone-200 p-5 sm:min-h-[52vh] lg:min-h-[66vh] lg:p-6"
+        style={{
+          backgroundImage: `url('${canvas2Background.src}')`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        <div className="relative w-full max-w-xl">
           <BlockedPaymentCard workspaceId={workspaceId} onUnlocked={onPlanUnlocked} />
         </div>
       </div>
@@ -121,7 +129,7 @@ export function OutputPanel({
 
   if (latestJob.status === "failed") {
     return (
-      <div className="flex min-h-[66vh] items-center justify-center rounded-3xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
+      <div className="flex min-h-[44vh] items-center justify-center rounded-3xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 sm:min-h-[52vh] lg:min-h-[66vh] lg:p-6">
         <div className="max-w-xl text-center">
           <p className="text-base font-semibold">Generation failed</p>
           <p className="mt-1 text-rose-700/90">
@@ -134,7 +142,7 @@ export function OutputPanel({
 
   if (outputs.length === 0) {
     return (
-      <div className="flex min-h-[66vh] items-center justify-center rounded-3xl border border-stone-200 bg-stone-50 p-6 text-sm text-stone-500">
+      <div className="flex min-h-[44vh] items-center justify-center rounded-3xl border border-stone-200 bg-stone-50 p-5 text-sm text-stone-500 sm:min-h-[52vh] lg:min-h-[66vh] lg:p-6">
         <div className="max-w-xl text-center">
           <p className="font-semibold text-stone-800">Generation completed.</p>
           <p className="mt-1">No outputs were linked to this job.</p>

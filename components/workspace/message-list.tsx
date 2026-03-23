@@ -54,7 +54,7 @@ export function MessageList({
         return (
           <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-[78%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed shadow-[0_3px_12px_rgba(20,20,20,0.04)] ${
+              className={`max-w-[88%] rounded-2xl px-3.5 py-3 text-[14px] leading-relaxed shadow-[0_3px_12px_rgba(20,20,20,0.04)] sm:max-w-[82%] sm:px-4 sm:text-[15px] ${
                 isUser
                   ? "border border-stone-200 bg-white text-stone-900"
                   : isAssistant

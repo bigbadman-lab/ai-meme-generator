@@ -108,8 +108,8 @@ export function WorkspaceShell({
 
   return (
     <div className="space-y-4">
-      <header className="flex h-14 items-center justify-between rounded-2xl border border-stone-200/90 bg-white/95 px-4 shadow-[0_6px_18px_rgba(20,20,20,0.06)]">
-        <div className="flex items-center gap-3">
+      <header className="flex min-h-14 flex-wrap items-center justify-between gap-2 rounded-2xl border border-stone-200/90 bg-white/95 px-3 py-2 shadow-[0_6px_18px_rgba(20,20,20,0.06)] sm:h-14 sm:flex-nowrap sm:px-4 sm:py-0">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Link
             href="/"
             className="inline-flex rounded-full px-2 py-1.5 transition hover:bg-stone-100"
@@ -125,34 +125,81 @@ export function WorkspaceShell({
               priority
             />
           </Link>
-          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${planChipClass}`}>
+          <span className={`rounded-full border px-2.5 py-1 text-[10px] font-medium sm:text-[11px] ${planChipClass}`}>
             {planLabel}
           </span>
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href={`/workspace/${workspaceId}/settings`}
+            href="/"
             className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:bg-stone-50"
           >
-            Settings
+            Back to home
           </Link>
         </div>
       </header>
 
-      <div className="grid min-h-[calc(100vh-9.5rem)] gap-5 lg:grid-cols-[340px_1fr]">
-      <aside className="flex h-full min-h-[74vh] flex-col rounded-3xl border border-stone-200/80 bg-stone-50/80 p-4 shadow-[0_8px_28px_rgba(10,10,10,0.05)]">
-        <div className="flex items-center justify-between gap-2">
-          <h1 className="text-sm font-semibold tracking-wide text-stone-800">Mimly chat</h1>
+      <div className="grid min-h-[calc(100vh-9.5rem)] gap-4 lg:grid-cols-[340px_1fr] lg:gap-5">
+      <aside className="order-1 flex h-[52vh] min-h-[440px] flex-col rounded-3xl border border-stone-200/80 bg-stone-50/80 p-3.5 shadow-[0_8px_28px_rgba(10,10,10,0.05)] sm:h-[58vh] sm:p-4 lg:h-full lg:min-h-[74vh]">
+        <div className="flex items-center justify-between gap-2 px-0.5">
+          <div
+            aria-label="Chat"
+            title="Chat"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-700"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              className="h-4 w-4"
+              aria-hidden="true"
+            >
+              <path
+                d="M12 3.5c-4.97 0-9 3.36-9 7.5 0 2.3 1.26 4.36 3.24 5.74L6 21l4.02-2.08c.64.11 1.3.17 1.98.17 4.97 0 9-3.36 9-7.5s-4.03-7.5-9-7.5Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M8.25 11.5h7.5M8.25 14.25h5.25"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
           <span className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-wide ${statusClass}`}>
             {displayStatusLabel.replace("_", " ")}
           </span>
         </div>
-        <div className="mt-3 flex-1 overflow-y-auto pr-1">
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1">
           <MessageList
             messages={sidebarMessages}
             onPillClick={submitMessage}
           />
         </div>
+        {isJobActive ? (
+          <div className="mt-2 rounded-2xl border border-sky-100 bg-white/80 px-3 py-2">
+            <div className="flex items-center gap-2 text-xs text-sky-700">
+              <div className="flex items-center gap-1">
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"
+                  style={{ animationDelay: "180ms" }}
+                />
+                <span
+                  className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"
+                  style={{ animationDelay: "360ms" }}
+                />
+              </div>
+              <span>Working on this now...</span>
+            </div>
+          </div>
+        ) : null}
         <div className="mt-3 border-t border-stone-200/90 bg-stone-50/90 pt-3">
           <PromptComposer
             disabled={isAuthLocked || isPlanLocked}
@@ -169,7 +216,7 @@ export function WorkspaceShell({
         </div>
       </aside>
 
-      <section className="rounded-3xl border border-stone-200/90 bg-white/95 p-6 shadow-[0_8px_30px_rgba(10,10,10,0.05)]">
+      <section className="order-2 rounded-3xl border border-stone-200/90 bg-white/95 p-4 shadow-[0_8px_30px_rgba(10,10,10,0.05)] sm:p-5 lg:p-6">
         <OutputPanel
           latestJob={state.latestJob}
           outputs={state.outputs}

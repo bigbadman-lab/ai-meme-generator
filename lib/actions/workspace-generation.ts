@@ -1,5 +1,3 @@
-"use server";
-
 import { randomUUID } from "node:crypto";
 import { generateMockMemes } from "@/lib/actions/memes";
 import { createWorkspaceAdminClient } from "@/lib/workspace/auth";

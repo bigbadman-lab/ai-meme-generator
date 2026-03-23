@@ -239,6 +239,10 @@ function formatLabel(format: MemeOutputFormat): string {
   return "Slideshow";
 }
 
+function availableFormatsSentence(): string {
+  return "I can help you create: square image memes, square video memes, square text memes, and vertical slideshows.";
+}
+
 function formatPills(
   preferred: MemeOutputFormat | null
 ): Array<{ label: string; message: string; kind: "format" }> {
@@ -438,7 +442,7 @@ export function interpretWorkspaceMessage(
       intent: "clarify_needed",
       should_generate: false,
       assistant_response:
-        "Quick check so I can nail this: who is this for, and should I start with image memes, video memes, text memes, or a slideshow?",
+        `Quick check so I can nail this: who is this for, and which format should I start with? ${availableFormatsSentence()}`,
       prompt_for_generation: null,
       output_format: null,
       variant_count: variantCount,
@@ -453,7 +457,7 @@ export function interpretWorkspaceMessage(
         "vertical_slideshow",
       ],
       suggested_actions: ["switch_format"],
-      ui_pills: formatPills("square_image"),
+      ui_pills: formatPills(null),
     };
   }
 
@@ -508,7 +512,7 @@ export function interpretWorkspaceMessage(
     intent: "clarify_needed",
     should_generate: false,
     assistant_response:
-      "I can definitely help with that. I work best by turning it into image memes, video memes, text memes, or a slideshow - which should I create first?",
+      "Choose a format to start.",
     prompt_for_generation: null,
     output_format: null,
     variant_count: 1,
@@ -523,7 +527,7 @@ export function interpretWorkspaceMessage(
       "vertical_slideshow",
     ],
     suggested_actions: ["switch_format"],
-    ui_pills: formatPills("square_image"),
+    ui_pills: formatPills(null),
   };
 }
 
