@@ -37,6 +37,8 @@ export type WorkspaceIntentPlan = {
   relation_to_previous_job: "none" | "follow_up" | "refine_last_generation";
   clarification_question: string | null;
   confidence: "high" | "medium" | "low";
+  explicit_promo_intent: boolean;
+  promo_context_excerpt?: string | null;
   context_patch?: {
     noted_user_context: string | null;
   };
@@ -232,6 +234,35 @@ function detectOutputOverride(text: string): MemeOutputFormat | null {
   return null;
 }
 
+function detectExplicitPromoIntent(text: string): {
+  explicitPromoIntent: boolean;
+  promoContextExcerpt: string | null;
+} {
+  const trimmed = text.trim();
+  const l = lower(trimmed);
+  const promoSignals = [
+    /\bsale\b/i,
+    /\bdiscount\b/i,
+    /\bhalf[\s-]?price\b/i,
+    /\boffer\b/i,
+    /\bdeal\b/i,
+    /\bbook now\b/i,
+    /\bopening offer\b/i,
+    /\blaunch offer\b/i,
+    /\b\d{1,2}%\s*off\b/i,
+    /\bpercent off\b/i,
+    /\bbogo\b/i,
+    /\bbuy one get one\b/i,
+    /\b(until|ends|valid|expires)\s+\w+/i,
+    /\b(on|from|until)\s+\d{1,2}(st|nd|rd|th)?\b/i,
+  ];
+  const hit = promoSignals.some((pattern) => pattern.test(l));
+  return {
+    explicitPromoIntent: hit,
+    promoContextExcerpt: hit ? trimmed.slice(0, 280) : null,
+  };
+}
+
 function formatLabel(format: MemeOutputFormat): string {
   if (format === "square_image") return "Image Meme";
   if (format === "square_video") return "Video Meme";
@@ -291,6 +322,7 @@ export function interpretWorkspaceMessage(
   const hasReference = Boolean(ctx.latestJob || ctx.hasLatestCompletedOutputs);
   const overrideFormat = detectOutputOverride(userMessage);
   const preferredFormat = overrideFormat ?? ctx.latestJob?.output_format ?? null;
+  const promoDetection = detectExplicitPromoIntent(userMessage);
 
   if (isMoreIdeasMessage(userMessage) && hasReference) {
     const outputFormat =
@@ -321,6 +353,8 @@ export function interpretWorkspaceMessage(
       relation_to_previous_job: "refine_last_generation",
       clarification_question: null,
       confidence: "high",
+      explicit_promo_intent: promoDetection.explicitPromoIntent,
+      promo_context_excerpt: promoDetection.promoContextExcerpt,
       suggested_formats: [outputFormat, "square_video", "square_text", "vertical_slideshow"].filter(
         (v, i, arr): v is MemeOutputFormat => arr.indexOf(v) === i
       ),
@@ -341,6 +375,8 @@ export function interpretWorkspaceMessage(
       relation_to_previous_job: "none",
       clarification_question: null,
       confidence: "high",
+      explicit_promo_intent: promoDetection.explicitPromoIntent,
+      promo_context_excerpt: promoDetection.promoContextExcerpt,
       suggested_formats: [
         "square_image",
         "square_video",
@@ -364,6 +400,8 @@ export function interpretWorkspaceMessage(
       relation_to_previous_job: hasReference ? "follow_up" : "none",
       clarification_question: null,
       confidence: "high",
+      explicit_promo_intent: promoDetection.explicitPromoIntent,
+      promo_context_excerpt: promoDetection.promoContextExcerpt,
       context_patch: {
         noted_user_context: userMessage,
       },
@@ -409,6 +447,8 @@ export function interpretWorkspaceMessage(
       relation_to_previous_job: "refine_last_generation",
       clarification_question: null,
       confidence: "high",
+      explicit_promo_intent: promoDetection.explicitPromoIntent,
+      promo_context_excerpt: promoDetection.promoContextExcerpt,
       suggested_formats: [outputFormat, "square_video", "square_text", "vertical_slideshow"].filter(
         (v, i, arr): v is MemeOutputFormat => arr.indexOf(v) === i
       ),
@@ -430,6 +470,8 @@ export function interpretWorkspaceMessage(
       clarification_question:
         "Who is this for, and which format do you want first?",
       confidence: "high",
+      explicit_promo_intent: promoDetection.explicitPromoIntent,
+      promo_context_excerpt: promoDetection.promoContextExcerpt,
       suggested_formats: [
         "square_image",
         "square_video",
@@ -477,6 +519,8 @@ export function interpretWorkspaceMessage(
       relation_to_previous_job: hasReference ? "follow_up" : "none",
       clarification_question: null,
       confidence: "medium",
+      explicit_promo_intent: promoDetection.explicitPromoIntent,
+      promo_context_excerpt: promoDetection.promoContextExcerpt,
       suggested_formats: [outputFormat, "square_video", "square_text", "vertical_slideshow"].filter(
         (v, i, arr): v is MemeOutputFormat => arr.indexOf(v) === i
       ),
@@ -497,6 +541,8 @@ export function interpretWorkspaceMessage(
     clarification_question:
       "Which format should I create first: image meme, video meme, text meme, or slideshow?",
     confidence: "low",
+    explicit_promo_intent: promoDetection.explicitPromoIntent,
+    promo_context_excerpt: promoDetection.promoContextExcerpt,
     suggested_formats: [
       "square_image",
       "square_video",

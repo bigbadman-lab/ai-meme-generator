@@ -1,36 +1,75 @@
-# Vertical slideshow setup
+# Vertical Slideshow Setup
 
-## 1. Run migration
+Short runbook for ingesting slideshow background assets and generating slideshow outputs.
 
-Apply `supabase/migrations/20260317120000_vertical_slideshow.sql` (adds `template_family`, `slideshow_config` on `meme_templates`, and `slideshow_image_assets`).
+## 0) Prerequisites
 
-## 2. Storage buckets
+- Required env vars:
+  - `OPENAI_API_KEY`
+  - `SUPABASE_URL` (or `NEXT_PUBLIC_SUPABASE_URL`)
+  - `SUPABASE_SERVICE_ROLE_KEY`
+- Optional env vars:
+  - `SLIDESHOW_ASSETS_BUCKET` (default: `slideshow-assets`)
+  - `SLIDESHOW_STORAGE_PREFIX` (default: `vertical`)
 
-Create a public (or signed) bucket for curated backgrounds, default name **`slideshow-assets`**.
+## 1) Apply migration
 
-- Optional env: `SLIDESHOW_ASSETS_BUCKET`
-- Ingestion script stores under prefix `vertical/` (override with `--storage-prefix=` or `SLIDESHOW_STORAGE_PREFIX`)
+Apply:
 
-Ensure **`generated-memes`** remains available for rendered slide PNGs (existing bucket).
+- `supabase/migrations/20260317120000_vertical_slideshow.sql`
 
-## 3. Ingest images
+This adds slideshow fields (`template_family`, `slideshow_config`) and the `slideshow_image_assets` table.
 
-Place vertical images in `~/Desktop/tt-slideshow` (or pass `--dir=`).
+## 2) Confirm storage buckets
+
+- Create/confirm a bucket for source slideshow backgrounds:
+  - default: `slideshow-assets`
+- Keep existing `generated-memes` bucket available (used for rendered slide outputs).
+
+## 3) Prepare local source images
+
+- Put vertical images in:
+  - `~/Desktop/tt-slideshow` (default), or use `--dir`.
+- Supported extensions: `.png`, `.jpg`, `.jpeg`, `.webp`.
+
+## 4) Run ingestion script
+
+Script:
+
+- `scripts/slideshow/ingest-tt-slideshow.ts`
+
+### 4a) Dry run first
 
 ```bash
 pnpm exec tsx scripts/slideshow/ingest-tt-slideshow.ts --dry-run=true
+```
+
+### 4b) Real ingestion
+
+```bash
 pnpm exec tsx scripts/slideshow/ingest-tt-slideshow.ts --dry-run=false --dir="/path/to/tt-slideshow"
 ```
 
-Requires `OPENAI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+Useful options:
 
-Idempotency: same file hash → row skipped (metadata not refreshed). Delete the row or change file to re-process.
+- `--limit=20`
+- `--report=./tmp/slideshow-ingest-report.json`
+- `--storage-prefix=vertical`
 
-## 4. Add a slideshow template row
+Notes:
 
-`generate-vertical-slideshow` loads `meme_templates` where `template_family = 'vertical_slideshow'` and the row is active.
+- Ingestion is idempotent by content hash.
+- If a file hash already exists, it is skipped.
+- To force re-processing, change the file or remove the existing DB row.
 
-Example (adjust `template_id` / constraints to match your table):
+## 5) Ensure at least one active slideshow template exists
+
+`generate-vertical-slideshow` only uses `meme_templates` rows where:
+
+- `template_family = 'vertical_slideshow'`
+- `is_active = true`
+
+Example SQL:
 
 ```sql
 insert into public.meme_templates (
@@ -56,7 +95,7 @@ insert into public.meme_templates (
   'vertical_slideshow',
   'image',
   'slideshow',
-  'Create a cohesive 3–5 slide vertical story that matches the brand voice. Slides build narrative tension then resolve; image mood should stay consistent across the set.',
+  'Create a cohesive 3-5 slide vertical story that matches the brand voice. Slides build narrative tension then resolve; image mood should stay consistent across the set.',
   'witty',
   'General SMB marketing contexts',
   'B2B and B2C brand social',
@@ -77,12 +116,29 @@ on conflict (slug) do update set
   is_active = excluded.is_active;
 ```
 
-Slug `brand-vertical-stories` matches the default ordering pool in `lib/memes/slideshow/generate-vertical-slideshow.ts`.
+## 6) Generate from workspace UI
 
-## 5. UI
+In `/workspace/[workspaceId]`:
 
-Create → choose **Vertical Slideshow** → Generate. Results show a swipeable 9:16 preview and per-slide downloads.
+1. Send a prompt that resolves to slideshow format.
+2. Generation runs and renders a vertical slideshow.
+3. UI shows swipeable 9:16 slides and slideshow download options.
 
-## 6. Output model
+## 7) Output shape (for debugging)
 
-One `generated_memes` row per slideshow; `variant_metadata` includes `media_type: "slideshow"`, `output_format: "vertical_slideshow"`, `slide_count`, `slideshow_intent`, and `slides[]` with `image_url` per slide. `image_url` on the row is the **first slide** for simple previews.
+One slideshow output = one `generated_memes` row.
+
+- `image_url`: first slide preview URL
+- `variant_metadata` includes:
+  - `output_format: "vertical_slideshow"`
+  - `slide_count`
+  - `slides[]` with per-slide `image_url`
+
+## Quick re-run checklist
+
+- Migration applied
+- Env vars set
+- Bucket exists
+- Dry run passes
+- Real ingest passes
+- Active `vertical_slideshow` template exists

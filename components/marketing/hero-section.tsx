@@ -65,6 +65,7 @@ export function HeroSection() {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [typedPlaceholder, setTypedPlaceholder] = useState("");
   const [isPromptFocused, setIsPromptFocused] = useState(false);
+  const promptFormRef = useRef<HTMLFormElement | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -245,6 +246,7 @@ export function HeroSection() {
               </div>
             </div> */}
             <form
+              ref={promptFormRef}
               onSubmit={async (event) => {
                 event.preventDefault();
                 const nextPrompt = prompt.trim();
@@ -279,6 +281,14 @@ export function HeroSection() {
                     }}
                     onFocus={() => setIsPromptFocused(true)}
                     onBlur={() => setIsPromptFocused(false)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        if (!isSubmittingPrompt) {
+                          promptFormRef.current?.requestSubmit();
+                        }
+                      }
+                    }}
                     rows={3}
                     placeholder=""
                     className="w-full resize-none border-none bg-transparent text-left text-lg leading-relaxed text-stone-900 placeholder:text-stone-500 focus:outline-none"
@@ -304,11 +314,6 @@ export function HeroSection() {
                 </div>
               </div>
             </form>
-            {isSubmittingPrompt ? (
-              <p className="mt-3 text-center text-sm text-stone-500">
-                Creating your workspace...
-              </p>
-            ) : null}
             {promptError ? (
               <p className="mt-2 text-center text-sm text-rose-600">{promptError}</p>
             ) : null}

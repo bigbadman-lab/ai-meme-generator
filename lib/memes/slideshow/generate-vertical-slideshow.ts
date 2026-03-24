@@ -18,11 +18,13 @@ import {
   type SlideshowImageAssetRecord,
   type ValidatedSlideshowPayload,
 } from "@/lib/memes/slideshow/types";
+import {
+  deriveWorkspaceFamilyTemplateHistory,
+  selectTemplatesFromWorkspaceFamilyCycle,
+} from "@/lib/workspace/template-cycle";
 
 const TITLE_MAX_CHARS = 45;
 const PROMOTION_MAX_CHARS = 280;
-const ORDERED_SLIDESHOW_SLUG_POOL = ["brand-vertical-stories"] as const;
-
 type PromoMode = "none" | "light" | "direct";
 type AssignedVariant = "standard" | "promo" | "important_day";
 
@@ -118,7 +120,6 @@ function summarizeSlideshowValidationInput(parsed: unknown): Record<string, unkn
     has_slideshow_intent: typeof p.slideshow_intent === "string",
     slideshow_intent_len:
       typeof p.slideshow_intent === "string" ? p.slideshow_intent.length : null,
-    has_post_caption: typeof p.post_caption === "string",
     slides_array_length: Array.isArray(slides) ? slides.length : null,
     slides: slideParts,
   };
@@ -288,6 +289,13 @@ function buildSlideshowPrompt(params: {
   promotion: string | null;
   promoMode: PromoMode;
   variantType: AssignedVariant;
+  conversationContext?: {
+    latestGenerationRequest?: string | null;
+    workspaceContextSummary?: string | null;
+    recentRefinementContext?: string | null;
+    explicitPromoIntent?: boolean;
+    promoContextExcerpt?: string | null;
+  };
   importantDayBlock: string;
   retryHint: string | null;
 }): string {
@@ -297,124 +305,73 @@ function buildSlideshowPrompt(params: {
     promotion,
     promoMode,
     variantType,
+    conversationContext,
     importantDayBlock,
     retryHint,
   } = params;
   const cfg = { ...DEFAULT_SLIDESHOW_CONFIG, ...template.slideshow_config };
+  const latestGenerationRequest = String(
+    conversationContext?.latestGenerationRequest ?? ""
+  ).trim();
+  const workspaceContextSummary = String(
+    conversationContext?.workspaceContextSummary ?? ""
+  ).trim();
+  const recentRefinementContext = String(
+    conversationContext?.recentRefinementContext ?? ""
+  ).trim();
+  const explicitPromoIntent = Boolean(conversationContext?.explicitPromoIntent);
+  const promoContextExcerpt = String(
+    conversationContext?.promoContextExcerpt ?? ""
+  ).trim();
 
   const promoGuidance =
     variantType !== "promo"
-      ? "No promotion: observational tone only. Zero pitch, no CTA phrasing, no \"DM us\" / \"link in bio\" unless the template explicitly demands it."
+      ? "No promotion: keep this observational and non-promotional."
       : promoMode === "direct"
-        ? "Direct promo: you may name the offer or context plainly, but NEVER ad slogans (Upgrade, Save money, Transform). Say what is true about the situation in plain speech, like a person explaining it, not a landing page."
+        ? "Direct promo: you may name the offer/context plainly, but keep spoken and meme-native (not slogan-style)."
         : promoMode === "light"
-          ? "Light promo: one subtle nod max. Still observational, not persuasive headlines."
-          : "Promo variant but weak fit: stay observational and editorial; no hard sell.";
+          ? "Light promo: one subtle nod max."
+          : "Promo variant with weak fit: keep it observational and non-salesy.";
 
-  return `You write on-screen copy for TikTok / Instagram Reels-style vertical slideshows (1080x1920).
+  return `=== OUTPUT CONTRACT (STRICT) ===
+Return valid JSON only (no markdown, no extra prose).
 
-=== MODE: OBSERVATIONAL (NOT AD COPY) ===
-You are NOT writing ads, landing pages, or marketing slogans. You ARE writing so the viewer thinks: "That's actually true."
-
-Goal: observation, realisation, slightly uncomfortable truth, something someone would say out loud. NOT advice, persuasion, or "convincing" copy.
-
-HARD RULES (violate any of these and the output is wrong):
-1) NEVER use CTA-style or hype verbs/phrases in slide text, including: upgrade, improve, transform, discover, save money, boost, maximise / maximize, get more, start now, unlock, level up, join thousands, limited time, act now, and close paraphrases. If it sounds like a campaign line, rewrite.
-2) NEVER use question hooks: "What if…", "Are you…", "Ever wondered…", "Did you know…" (as empty hooks), or similar. Hooks must be STATEMENTS.
-3) NEVER default to vague abstractions as the point of a slide: clarity, insights, value, impact, success, results, potential, solutions (unless naming something concrete in the same line). Prefer the specific thing happening.
-4) NEVER sound like an ad, a landing page hero, or a LinkedIn thought-leadership post. If a line could be a tagline on a billboard, it is wrong.
-
-=== WRITING PRINCIPLES ===
-- Every slide: a statement, grounded in reality, specific enough to feel true, short and direct.
-- Prefer observations over advice, statements over suggestions, specificity over abstraction, tension over fake positivity.
-- One idea per slide. Readable in ~2 seconds per line on a phone. Do not repeat the same takeaway on consecutive slides.
-
-=== PRECISION & VIVIDNESS (sharper lines, same observational mode) ===
-Improve HOW you say each idea: sharper, more vivid, less predictable. Do not change the observational stance; do not add ads, CTAs, or questions. Do not add length or poetry.
-
-1) AVOID FIRST-OBVIOUS PHRASING — If a line sounds like the easiest way to say it, rewrite. Push past the default verb choice.
-BAD: "Drafts sneak through gaps."
-BETTER (style): lines that feel felt or specific, e.g. something you notice in the body or in a moment, not a generic label for the problem.
-
-2) PREFER EXPERIENCED REALITY OVER FLAT DESCRIPTION — Move from naming the situation to how it shows up in life: temperature, timing, place, repeat annoyance.
-BAD: "Heat escapes through the windows."
-BETTER (style): what it feels like when you're in the room (still cold after you heated it, cold when you walk past, etc.). Keep it one or two short beats.
-
-3) CONCRETE OR SENSORY DETAIL (light touch) — One physical or observable hit where it helps: where you feel it, when it happens. Do not stack adjectives or over-describe.
-
-4) SLIGHTLY HIGHER SPECIFICITY — Prefer the concrete mechanism over the broad label.
-BAD: "You're losing energy."
-BETTER (style): what is actually leaving or not staying (air, heat, attention, time), in plain words.
-
-5) SLIGHTLY UNEXPECTED WORDING — One step past the obvious phrase (unexpected noun, verb, or image), still spoken and clear.
-BAD: "You're letting the cold in."
-BETTER (style): a fresher image of the same truth (e.g. outside/cold/winter as a presence), without sounding clever for its own sake.
-
-6) STAY NATURAL AND SPOKEN — Short, clear, sayable. Not poetic, not complex, not longer.
-
-=== ROLE DEFINITIONS (must match ladder; write for each role) ===
-**hook** — Introduce a surprising or uncomfortable truth. Make the user pause. Must NOT sound like a benefit, claim, or slogan.
-BAD: "Old windows are costing you money."
-GOOD: "You're heating the outside."
-
-**build** (when present) — Make the situation more concrete: what is actually happening. Show the pattern. Avoid abstract language.
-BAD: "Endless updates drown out insights."
-GOOD: "You read it. Then nothing changes."
-
-**turn** — Reframe what is going on beneath the surface. NOT a question. NOT advice. Short declarative lines are OK (e.g. two beats: "It's not X." / "It's Y." as one slide text using short sentences).
-BAD: "What if your windows worked harder?"
-GOOD: "It's not your heating." / "It's your windows." (adapt to brand; do not copy verbatim)
-
-**payoff** — Land as a conclusion or realisation: obvious in hindsight. NOT advice, NOT a CTA, NOT a deal.
-BAD: "Upgrade your view. Save money."
-GOOD: "You've been paying for it the whole time." / "Most of it is wasted." (style only; use your own words and brand context)
-
-=== STYLE ===
-- Short sentences. Simple words. No filler. Spoken, not "copywritten."
-- Avoid polished transitions and brand-voice polish. Prefer plain speech.
-
-=== PUNCTUATION & RHYTHM (slides, post_caption, slideshow_intent) ===
-- NEVER use an em dash (Unicode U+2014) or en dash (U+2013). Validator rejects them. Use periods, commas, or a normal hyphen (-) only when needed (e.g. compound words).
-- Prefer punchy fragments and periods over elegant transitions.
-
-=== QUALITY FILTER (before you output JSON) ===
-Observational bar — for EVERY slide text, post_caption, and slideshow_intent:
-- Would a real person say this out loud?
-- Does this feel like an observation, not advice or a pitch?
-- Is it anchored in a concrete situation (not a generic truism that could apply to anything)? If too broad, tighten with one sharper, more specific angle. Still no corporate tone.
-
-Precision bar — for EVERY slide line (and tighten post_caption / intent the same way):
-1) Is this the most obvious / first-pass way to say this? If yes, rewrite one notch sharper.
-2) Does this feel like something someone has actually experienced (body, place, moment), not just a label for the problem? If no, rewrite toward lived experience.
-3) Would this line be remembered after one read? If it feels forgettable, push specificity or one unexpected but natural word — without adding verbosity.
-
-If any check fails, rewrite before returning JSON.
-
-=== ROLE LADDERS (exact order; role strings are fixed) ===
 slide_count MUST be 3, 4, or 5 only. slides.length MUST equal slide_count.
-For each index i, slides[i].role MUST equal exactly the i-th token below for the chosen slide_count. Use only these role names: hook, build, turn, payoff. No custom roles, no synonyms, no missing/extra slides.
+Role ladder is fixed by slide_count:
+- 3 slides -> hook, turn, payoff
+- 4 slides -> hook, build, turn, payoff
+- 5 slides -> hook, build, build, turn, payoff
 
-- 3 slides → hook, turn, payoff
-- 4 slides → hook, build, turn, payoff
-- 5 slides → hook, build, build, turn, payoff
+For each index i, slides[i].role MUST equal the exact ladder token at i.
+Allowed roles only: hook, build, turn, payoff.
 
-=== LAYOUT (choose from text length) ===
-layout_variant MUST be exactly "layout_a" or "layout_b" per slide.
-- layout_a (Text A): shorter, punchier, tighter phrasing (upper band).
-- layout_b (Text B, middle): can carry slightly more words but still skimmable fast; text renders in the vertical center of the slide; never essay-style.
+Each slide MUST include:
+- role
+- text
+- layout_variant ("layout_a" | "layout_b")
+- image_selection object
 
-Hard rendering limits (each slide "text" is a single line; no newline characters in JSON):
-- layout_a: up to ${cfg.layout_a_max_chars} characters per wrapped line, up to ${cfg.layout_a_max_lines} lines after wrapping.
-- layout_b: up to ${cfg.layout_b_max_chars} characters per wrapped line, up to ${cfg.layout_b_max_lines} lines after wrapping.
-Pick layout_a when copy is short; layout_b only when you need a bit more room while staying concise.
+Top-level fields:
+- slide_count
+- slideshow_intent (observational arc; non-promotional; minimum 8 meaningful characters)
+- slides
 
-=== image_selection (keys MUST match slideshow_image_assets schema) ===
-Each slide.image_selection object MUST use these property names only:
+=== RENDER SAFETY (MUST PASS) ===
+Each slide.text must be single-line JSON text (no newline characters).
+layout_variant rules:
+- layout_a = shorter, punchier phrasing
+- layout_b = can carry slightly more words, still skimmable and concise
+
+Hard limits from template config:
+- layout_a: max ${cfg.layout_a_max_chars} chars per wrapped line, max ${cfg.layout_a_max_lines} wrapped lines
+- layout_b: max ${cfg.layout_b_max_chars} chars per wrapped line, max ${cfg.layout_b_max_lines} wrapped lines
+
+image_selection schema keys (exact):
 theme, mood, setting, subject_type, industry_tags, color_profile
-Optional: min_layout_fit_score (integer 0-10).
-Do NOT use color_preference or any other keys.
+Optional: min_layout_fit_score (integer 0-10)
+Do not use other keys.
 
-Controlled vocabulary (use these exact lowercase_snake literals; no free-form synonyms in JSON):
+Controlled vocabulary:
 - theme: comfort | discomfort | luxury | productivity | cleanliness | stress | relief | lifestyle
 - mood: calm | warm | cool | serious | aspirational | frustrated
 - setting: home_interior | home_exterior | office | outdoor_urban | commercial_interior
@@ -422,26 +379,64 @@ Controlled vocabulary (use these exact lowercase_snake literals; no free-form sy
 - industry_tags: array of max 6 short snake_case tags (e.g. ["saas","b2b"])
 - color_profile: warm | cool | neutral | high_contrast | muted | monochrome
 
-=== TOP-LEVEL FIELDS ===
-- slideshow_intent: observational arc for the set (not a pitch), brand-safe, at least ~8 meaningful characters.
-- post_caption: TikTok-native, max 220 characters, single line (no newlines), not corporate or CTA.
+=== CREATIVE OBJECTIVE ===
+Write a TikTok/Reels-native vertical slideshow (1080x1920) that feels like a real observation, not an ad.
+Target lines that are:
+- specific and lived-in (real moments, concrete details)
+- concise and spoken (natural to say out loud)
+- memorable on first read (not generic social filler)
 
-=== STRICT JSON SHAPE (illustrative) ===
-{"slide_count":4,"slideshow_intent":"Heat leaking through glass nobody notices","slides":[{"role":"hook","text":"You're heating the outside.","layout_variant":"layout_a","image_selection":{"theme":"stress","mood":"frustrated","setting":"home_interior","subject_type":"environment","industry_tags":["home"],"color_profile":"cool"}},{"role":"build","text":"You read it. Then nothing changes.","layout_variant":"layout_b","image_selection":{"theme":"productivity","mood":"serious","setting":"home_interior","subject_type":"detail","industry_tags":["home"],"color_profile":"neutral"}},{"role":"turn","text":"It's not your heating. It's the glass.","layout_variant":"layout_a","image_selection":{"theme":"relief","mood":"calm","setting":"home_interior","subject_type":"person","industry_tags":["home"],"color_profile":"warm"}},{"role":"payoff","text":"You've been paying for it the whole time.","layout_variant":"layout_a","image_selection":{"theme":"relief","mood":"aspirational","setting":"outdoor_urban","subject_type":"environment","industry_tags":["home"],"color_profile":"high_contrast"}}],"post_caption":"the leak nobody talks about"}
+Avoid:
+- CTA/hype/campaign phrasing
+- empty question hooks
+- abstract business-safe language that could fit any brand
+- corporate tone or polished slogan voice
 
-=== BRAND CONTEXT ===
+=== ROLE WRITING RULES ===
+hook:
+- open with a surprising, uncomfortable, or sharply relatable truth
+- statement only (not a question or claim line)
+
+build (when present):
+- make the situation concrete and tangible
+- show pattern/friction, avoid abstractions
+
+turn:
+- reframe the situation clearly
+- declarative, not advice; can be short two-beat phrasing when natural
+
+payoff:
+- land with hindsight clarity / consequence
+- no CTA, no offer language, no hard sell
+
+Quality check before returning JSON:
+- each slide is a distinct idea (no near-duplicates)
+- lines stay observational, specific, and easy to scan
+- if a line feels obvious/generic, rewrite it sharper
+
+=== CONTEXT ===
+Mode: observational social storytelling.
+
+Conversation context:
+- latest_generation_request: ${latestGenerationRequest || "None"}
+- workspace_context_summary: ${workspaceContextSummary || "None"}
+- recent_refinement_context: ${recentRefinementContext || "None"}
+- explicit_promo_intent: ${explicitPromoIntent ? "true" : "false"}
+- promo_context_excerpt: ${promoContextExcerpt || "None"}
+
+Brand context:
 - brand_name: ${profile.brand_name ?? ""}
 - what_you_do: ${profile.what_you_do ?? ""}
 - audience: ${profile.audience ?? ""}
 - country: ${profile.country ?? ""}
 - ${englishVariantPromptInstruction(resolveEffectiveEnglishVariant(profile.english_variant))}
 
-=== PROMOTION (this generation) ===
+Promotion context (this generation):
 Promotion context: ${promotion ?? "None"}
 Variant: ${variantType} | Promo mode: ${variantType === "promo" ? promoMode : "none"}
 ${promoGuidance}
 
-=== TEMPLATE BRIEF ===
+Template brief:
 - template_name: ${template.template_name}
 - slug: ${template.slug}
 - template_logic: ${template.template_logic}
@@ -453,7 +448,7 @@ ${promoGuidance}
 
 ${importantDayBlock}
 
-${retryHint ? `Fix the previous attempt:\n${retryHint}\n` : ""}`;
+${retryHint ? `=== RETRY CORRECTION ===\nFix the previous attempt:\n${retryHint}\n` : ""}`;
 }
 
 export async function runVerticalSlideshowGeneration(params: {
@@ -462,6 +457,13 @@ export async function runVerticalSlideshowGeneration(params: {
   user: User;
   profile: Profile;
   promotionContext?: string;
+  context?: {
+    latestGenerationRequest?: string | null;
+    workspaceContextSummary?: string | null;
+    recentRefinementContext?: string | null;
+    explicitPromoIntent?: boolean;
+    promoContextExcerpt?: string | null;
+  };
   options?: {
     limit?: number;
     excludeExistingUserTemplates?: boolean;
@@ -480,6 +482,7 @@ export async function runVerticalSlideshowGeneration(params: {
     user,
     profile,
     promotionContext,
+    context,
     options,
   } = params;
 
@@ -551,17 +554,8 @@ export async function runVerticalSlideshowGeneration(params: {
     }
   }
 
-  const slugOrder = new Map<string, number>(
-    ORDERED_SLIDESHOW_SLUG_POOL.map((s, i) => [s, i])
-  );
   let pool = slideshowTemplates
-    .filter((t) => !excluded.has(t.template_id))
-    .sort((a, b) => {
-      const ai = slugOrder.get(a.slug) ?? 999;
-      const bi = slugOrder.get(b.slug) ?? 999;
-      if (ai !== bi) return ai - bi;
-      return a.slug.localeCompare(b.slug);
-    });
+    .filter((t) => !excluded.has(t.template_id));
 
   if (forcedTemplateId) {
     pool = slideshowTemplates.filter(
@@ -578,40 +572,59 @@ export async function runVerticalSlideshowGeneration(params: {
     };
   }
 
-  const recentWorkspaceTemplateIds = new Set<string>();
+  let cycleDiagnostics: Record<string, unknown> = {
+    selection_scope: "workspace_family_cycle",
+    output_family: "vertical_slideshow",
+    eligible_pool_size: pool.length,
+    used_pool_size_before_pick: 0,
+    unused_pool_size_before_pick: pool.length,
+    cooldown_window_size: 3,
+    cooldown_applied: false,
+    cycle_exhausted: false,
+    cycle_reset_applied: false,
+    selected_template_id: null,
+    selected_template_slug: null,
+    selection_stage: "unused_pool",
+  };
+  let selected: SlideshowTemplate[] = [];
   if (options?.workspaceContext?.workspaceId) {
     const { data: recentWorkspaceRows } = await adminSupabase
       .from("generated_memes")
-      .select("template_id, variant_metadata")
+      .select("template_id, created_at")
       .contains("variant_metadata", {
         workspace_id: options.workspaceContext.workspaceId,
       })
       .order("created_at", { ascending: false })
-      .limit(6);
-    for (const row of recentWorkspaceRows ?? []) {
-      const templateId = String((row as { template_id?: unknown }).template_id ?? "").trim();
-      if (templateId) recentWorkspaceTemplateIds.add(templateId);
-    }
+      .limit(500);
+    const eligibleTemplateIds = new Set(pool.map((template) => template.template_id));
+    const history = deriveWorkspaceFamilyTemplateHistory({
+      rows: (recentWorkspaceRows ?? []) as Array<{ template_id?: unknown }>,
+      eligibleTemplateIds,
+      cooldownWindow: 3,
+    });
+    const cycle = selectTemplatesFromWorkspaceFamilyCycle({
+      eligibleTemplates: pool,
+      usedTemplateIds: history.usedTemplateIds,
+      recentTemplateIds: history.recentTemplateIds,
+      outputFamily: "vertical_slideshow",
+      count: batchSize,
+      cooldownWindow: 3,
+    });
+    selected = cycle.selected;
+    cycleDiagnostics = cycle.diagnostics as Record<string, unknown>;
   }
-  const pickRandomTemplates = (
-    templates: SlideshowTemplate[],
-    count: number,
-    avoidIds: Set<string>
-  ) => {
-    const available = [...templates];
-    const selectedTemplates: SlideshowTemplate[] = [];
-    while (available.length > 0 && selectedTemplates.length < count) {
-      const preferred = available.filter((t) => !avoidIds.has(t.template_id));
-      const source = preferred.length > 0 ? preferred : available;
-      const chosen = source[Math.floor(Math.random() * source.length)];
-      selectedTemplates.push(chosen);
-      const next = available.filter((t) => t.template_id !== chosen.template_id);
-      available.length = 0;
-      available.push(...next);
-    }
-    return selectedTemplates;
-  };
-  const selected = pickRandomTemplates(pool, batchSize, recentWorkspaceTemplateIds);
+  if (selected.length === 0) {
+    const cycle = selectTemplatesFromWorkspaceFamilyCycle({
+      eligibleTemplates: pool,
+      usedTemplateIds: new Set<string>(),
+      recentTemplateIds: [],
+      outputFamily: "vertical_slideshow",
+      count: batchSize,
+      cooldownWindow: 3,
+    });
+    selected = cycle.selected;
+    cycleDiagnostics = cycle.diagnostics as Record<string, unknown>;
+  }
   const assignedVariants: AssignedVariant[] = new Array(selected.length).fill(
     "standard"
   );
@@ -666,6 +679,7 @@ export async function runVerticalSlideshowGeneration(params: {
         promotion: variantType === "promo" ? promotion : null,
         promoMode,
         variantType,
+        conversationContext: context,
         importantDayBlock,
         retryHint,
       });
@@ -860,7 +874,7 @@ export async function runVerticalSlideshowGeneration(params: {
       format: template.template_name,
       top_text: payload.slides[0]?.text ?? title,
       bottom_text: null as string | null,
-      post_caption: payload.post_caption,
+      post_caption: null,
       image_url: firstPublicUrl,
       variant_type: variantType,
       generation_run_id: generationRunId,
@@ -868,8 +882,10 @@ export async function runVerticalSlideshowGeneration(params: {
       variant_metadata: {
         ...variantMetadata,
         selected_template_slug: template.slug,
+        selected_template_id: template.template_id,
         selection_strategy: "random_template",
         workflow_mode: "single_output",
+        ...cycleDiagnostics,
         requested_output_format: "vertical_slideshow",
         ...(contentPackMeta ?? {}),
         ...(options?.workspaceContext?.workspaceId

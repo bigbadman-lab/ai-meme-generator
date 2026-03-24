@@ -14,8 +14,6 @@ import {
 import type { SlideshowTemplateConfig } from "@/lib/memes/slideshow/types";
 import { DEFAULT_SLIDESHOW_CONFIG } from "@/lib/memes/slideshow/types";
 
-const POST_CAPTION_MAX = 220;
-
 function normalizeSingleLine(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const cleaned = v.replace(/\r?\n/g, " ").replace(/\s+/g, " ").trim();
@@ -153,21 +151,6 @@ export function validateSlideshowLlmOutput(
     return { ok: false, failureRule: "slideshow_intent_forbidden_em_or_en_dash" };
   }
 
-  const postCaptionRaw =
-    typeof p.post_caption === "string"
-      ? p.post_caption
-          .replace(/\r?\n/g, " ")
-          .replace(/\s+/g, " ")
-          .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
-          .trim()
-      : "";
-  if (!postCaptionRaw || postCaptionRaw.length > POST_CAPTION_MAX) {
-    return { ok: false, failureRule: "post_caption_invalid" };
-  }
-  if (containsForbiddenSlideshowDash(postCaptionRaw)) {
-    return { ok: false, failureRule: "post_caption_forbidden_em_or_en_dash" };
-  }
-
   const config = mergedConfig(templateSlideshowConfig);
   const slides: ValidatedSlideshowSlide[] = [];
 
@@ -208,7 +191,6 @@ export function validateSlideshowLlmOutput(
       slide_count: count as 3 | 4 | 5,
       slideshow_intent: intent.slice(0, 400),
       slides,
-      post_caption: postCaptionRaw,
     },
   };
 }

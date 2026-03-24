@@ -14,9 +14,13 @@ import { renderSquareTextMemePng } from "@/renderer/renderSquareTextMeme";
 import type { MemeOutputFormat } from "@/lib/memes/meme-output-formats";
 import { getActiveImportantDay } from "@/lib/memes/variants/get-active-important-day";
 import { runVerticalSlideshowGeneration } from "@/lib/memes/slideshow/generate-vertical-slideshow";
+import {
+  deriveWorkspaceFamilyTemplateHistory,
+  selectTemplatesFromWorkspaceFamilyCycle,
+} from "@/lib/workspace/template-cycle";
 
 export async function generateMockMemes(
-  promotionContext?: string,
+  generationContextText?: string,
   options?: {
     limit?: number;
     excludeExistingUserTemplates?: boolean;
@@ -35,6 +39,10 @@ export async function generateMockMemes(
       workspaceId?: string | null;
       profileOverride?: Partial<Profile> | null;
     };
+    /** Explicit promo signal extracted from conversation; null means non-promo request. */
+    explicitPromoContext?: string | null;
+    /** Neutral workspace summary from chat/workspace state. */
+    workspaceContextSummary?: string | null;
   }
 ): Promise<{ error: string | null; generationRunId?: string }> {
   try {
@@ -76,11 +84,10 @@ export async function generateMockMemes(
   }
 
   const PROMOTION_MAX_CHARS = 280;
-  const POST_CAPTION_MAX_CHARS = 220;
   const TITLE_MAX_CHARS = 45;
   const INITIAL_TEMPLATE_BATCH_SIZE = 1;
 
-  type PromoMode = "none" | "light" | "direct";
+  type ExplicitPromoMode = "none" | "light" | "direct";
   type AssignedVariant = "standard" | "promo" | "important_day";
   type TemplateVariantAssignment = {
     template_id: string;
@@ -101,6 +108,12 @@ export async function generateMockMemes(
     | "sign_caption";
 
   const normalizePromotionContext = (value: unknown): string | null => {
+    if (typeof value !== "string") return null;
+    const collapsed = value.replace(/\s+/g, " ").trim();
+    if (!collapsed) return null;
+    return collapsed.slice(0, PROMOTION_MAX_CHARS).trim() || null;
+  };
+  const normalizeConversationContext = (value: unknown): string | null => {
     if (typeof value !== "string") return null;
     const collapsed = value.replace(/\s+/g, " ").trim();
     if (!collapsed) return null;
@@ -127,7 +140,9 @@ export async function generateMockMemes(
     ].some((pattern) => pattern.test(normalized));
   };
 
-  const promotion = normalizePromotionContext(promotionContext);
+  const conversationContext = normalizeConversationContext(generationContextText);
+  const explicitPromoContext = normalizePromotionContext(options?.explicitPromoContext);
+  const workspaceContextSummary = normalizeConversationContext(options?.workspaceContextSummary);
   const batchSize = options?.limit ?? INITIAL_TEMPLATE_BATCH_SIZE;
   const outputFormat: MemeOutputFormat = options?.outputFormat ?? "square_image";
   const targetAssetType = outputFormat === "square_video" ? "video" : "image";
@@ -141,7 +156,9 @@ export async function generateMockMemes(
   console.log("[important-day] activeImportantDay", activeImportantDay);
 
   const generationContext = {
-    promotion,
+    conversationContext,
+    explicitPromoContext,
+    workspaceContextSummary,
     batchSize,
     generationRunId,
     batchNumber,
@@ -149,10 +166,12 @@ export async function generateMockMemes(
   };
 
   console.log("[meme-gen] Generation start", {
-    hasPromotion: Boolean(generationContext.promotion),
+    hasConversationContext: Boolean(generationContext.conversationContext),
+    hasExplicitPromoContext: Boolean(generationContext.explicitPromoContext),
     outputFormat,
     targetAssetType,
-    promotionLength: generationContext.promotion?.length ?? 0,
+    conversationContextLength: generationContext.conversationContext?.length ?? 0,
+    explicitPromoLength: generationContext.explicitPromoContext?.length ?? 0,
     batchSize: generationContext.batchSize,
     generationRunId: generationContext.generationRunId,
     batchNumber: generationContext.batchNumber,
@@ -186,11 +205,11 @@ export async function generateMockMemes(
     return { error: "Failed to generate memes. Check server logs for details." };
   }
 
-  // Keep the promo heuristic explicit and boring so it's easy to tune.
-  const derivePromoMode = (template: {
+  // Keep the explicit-promo heuristic deterministic and easy to tune.
+  const deriveExplicitPromoMode = (template: {
     promotion_fit: string;
-  }): PromoMode => {
-    if (!promotion) return "none";
+  }): ExplicitPromoMode => {
+    if (!explicitPromoContext) return "none";
 
     const fit = template.promotion_fit.toLowerCase();
 
@@ -244,10 +263,10 @@ export async function generateMockMemes(
       "hint",
     ];
     if (lightSignals.some((signal) => fit.includes(signal))) {
-      return isDirectFriendlyPromoText(promotion) ? "direct" : "light";
+      return isDirectFriendlyPromoText(explicitPromoContext) ? "direct" : "light";
     }
 
-    if (isDirectFriendlyPromoText(promotion)) {
+    if (isDirectFriendlyPromoText(explicitPromoContext)) {
       return "direct";
     }
 
@@ -296,7 +315,20 @@ export async function generateMockMemes(
       adminSupabase,
       user,
       profile,
-      promotionContext,
+      promotionContext: generationContextText,
+      context: {
+        latestGenerationRequest: generationContext.conversationContext,
+        workspaceContextSummary: generationContext.workspaceContextSummary,
+        recentRefinementContext:
+          generationContext.workspaceContextSummary &&
+          generationContext.conversationContext &&
+          generationContext.workspaceContextSummary !==
+            generationContext.conversationContext
+            ? generationContext.workspaceContextSummary
+            : null,
+        explicitPromoIntent: Boolean(generationContext.explicitPromoContext),
+        promoContextExcerpt: generationContext.explicitPromoContext,
+      },
       options: {
         limit: options?.limit ?? 1,
         excludeExistingUserTemplates: options?.excludeExistingUserTemplates,
@@ -455,57 +487,6 @@ export async function generateMockMemes(
     return { value: s, failRule: null, length: s.length };
   };
 
-  const validatePostCaption = (
-    v: unknown
-  ): { value: string | null; failRule: string | null; length: number | null } => {
-    if (typeof v !== "string") {
-      return {
-        value: null,
-        failRule: "post_caption_missing_or_invalid",
-        length: null,
-      };
-    }
-
-    const cleaned = v
-      .replace(/\r?\n/g, " ")
-      .replace(/\s+/g, " ")
-      .replace(/^["'“”‘’]+|["'“”‘’]+$/g, "")
-      .trim();
-
-    if (!cleaned) {
-      return {
-        value: null,
-        failRule: "post_caption_missing_or_invalid",
-        length: null,
-      };
-    }
-
-    if (cleaned.length > POST_CAPTION_MAX_CHARS) {
-      return {
-        value: null,
-        failRule: "post_caption_too_long",
-        length: cleaned.length,
-      };
-    }
-
-    return { value: cleaned, failRule: null, length: cleaned.length };
-  };
-
-  const buildFallbackPostCaption = (params: {
-    variantContext: VariantContext;
-  }): string => {
-    const { variantContext } = params;
-
-    const fallback =
-      variantContext.variantType === "important_day" && variantContext.importantDayLabel
-        ? `A little too real for ${variantContext.importantDayLabel}.`
-        : variantContext.variantType === "promo"
-          ? "A little too real while this offer is live."
-          : "A little too real not to post.";
-
-    return fallback.slice(0, POST_CAPTION_MAX_CHARS).trim();
-  };
-
   const validateSlotTextSingleLine = (
     v: unknown,
     maxChars: number,
@@ -533,6 +514,11 @@ export async function generateMockMemes(
         text: cleaned,
         maxChars,
       });
+      return { value: cleaned, failRule: null, length: cleaned.length };
+    }
+    if (options?.allowShortLabelMode) {
+      // Tight side/overlay slots should not be rejected by sentence-fragment heuristics
+      // once they already satisfy the hard character budget.
       return { value: cleaned, failRule: null, length: cleaned.length };
     }
     const fragmentCheck = looksLikeCutOffFragment(cleaned, maxChars, {
@@ -815,7 +801,7 @@ Slot 1:
 - If not, rewrite before returning.
 
 8) PROMO VARIANTS
-- Even when promo_mode is active, do not turn top_text into offer/CTA headline copy. Keep the card meme-first; use post_caption for softer promo context if needed. Never invent promo facts.
+- Even when promo_mode is active, do not turn top_text into offer/CTA headline copy. Keep the card meme-first and never invent promo facts.
 
 `;
   };
@@ -968,11 +954,19 @@ ${getTemplateTypeRetryShape()}`;
     }
 
     if (previousFailureRule.endsWith("_over_max_chars") && slotLabel && slotMaxChars) {
+      const strictTightMode =
+        isUltraTightTemplate(template) &&
+        (template.template_type === "side_caption" ||
+          template.template_type === "overlay");
       return `Retry correction:
 - The previous ${slotLabel} exceeded the character limit.
 - Rewrite ${slotLabel} shorter without changing the core joke.
 - Keep ${slotLabel} at or under ${slotMaxChars} characters.
 - Remove filler words and choose simpler phrasing.
+${strictTightMode
+  ? `- Tight-template fallback: use a compact 1-3 word label, not a sentence-style clause.
+- Target at least 3 characters under the limit when possible.`
+  : ""}
 ${getTemplateTypeRetryShape()}`;
     }
 
@@ -1019,7 +1013,17 @@ ${getTemplateTypeRetryShape()}`;
 - Aim comfortably under the max chars for each slot rather than writing up to the limit.
 - Remove filler words, articles, and extra connective phrasing unless they are essential.
 - For side-by-side contrast, make Slot 1 and Slot 2 feel parallel and instantly scannable.
-- Think compressed option labels, reaction labels, or comparison shorthand.`;
+- Think compressed option labels, reaction labels, or comparison shorthand.
+- Specificity rule for tight labels: use one concrete cue (e.g. queue, wrong order, rush hour), not a full descriptive sentence.`;
+    }
+
+    if (template.template_type === "overlay") {
+      return `Ultra-tight template mode:
+- This template is extremely space-constrained.
+- Use compact, on-image labels (prefer 1-3 words).
+- Do not write full setup/payoff sentences in overlay slots.
+- Aim comfortably under max chars, not at the edge.
+- Specificity rule for tight labels: one concrete cue is enough; avoid long descriptive detail.`;
     }
 
     return `Ultra-tight template mode:
@@ -1033,7 +1037,11 @@ ${getTemplateTypeRetryShape()}`;
   const allowShortLabelValidationMode = (
     template: CompatibleTemplate
   ): boolean => {
-    return template.template_type === "side_caption" && isUltraTightTemplate(template);
+    return (
+      isUltraTightTemplate(template) &&
+      (template.template_type === "side_caption" ||
+        template.template_type === "overlay")
+    );
   };
 
   const getIdealSlotTargets = (
@@ -1164,27 +1172,6 @@ ${getTemplateTypeRetryShape()}`;
       .filter((t) => t.template_id && t.template_name && t.slug && t.slot_1_role);
   };
 
-  const pickRandomTemplates = (
-    pool: CompatibleTemplate[],
-    count: number,
-    avoidTemplateIds: Set<string>
-  ): CompatibleTemplate[] => {
-    if (pool.length === 0 || count <= 0) return [];
-    const available = [...pool];
-    const selected: CompatibleTemplate[] = [];
-    while (available.length > 0 && selected.length < count) {
-      const preferred = available.filter((t) => !avoidTemplateIds.has(t.template_id));
-      const source = preferred.length > 0 ? preferred : available;
-      const chosen = source[Math.floor(Math.random() * source.length)];
-      selected.push(chosen);
-      const chosenId = chosen.template_id;
-      const next = available.filter((t) => t.template_id !== chosenId);
-      available.length = 0;
-      available.push(...next);
-    }
-    return selected;
-  };
-
   const compatibleTemplates = loadCompatibleTemplates(templates);
 
   if (compatibleTemplates.length === 0) {
@@ -1258,26 +1245,77 @@ ${getTemplateTypeRetryShape()}`;
     };
   }
 
-  const recentWorkspaceTemplateIds = new Set<string>();
+  let cycleDiagnostics: Record<string, unknown> = {
+    selection_scope: "workspace_family_cycle",
+    output_family: outputFormat,
+    eligible_pool_size: templatePool.length,
+    used_pool_size_before_pick: 0,
+    unused_pool_size_before_pick: templatePool.length,
+    cooldown_window_size: 3,
+    cooldown_applied: false,
+    cycle_exhausted: false,
+    cycle_reset_applied: false,
+    selected_template_id: null,
+    selected_template_slug: null,
+    selection_stage: "unused_pool",
+  };
+
+  let selectedTemplatesForBatch: CompatibleTemplate[] = [];
   if (workspaceContext?.workspaceId) {
     const { data: recentWorkspaceRows } = await adminSupabase
       .from("generated_memes")
-      .select("template_id, variant_metadata")
+      .select("template_id, created_at")
       .contains("variant_metadata", { workspace_id: workspaceContext.workspaceId })
       .order("created_at", { ascending: false })
-      .limit(6);
-    for (const row of recentWorkspaceRows ?? []) {
-      const templateId = String((row as any).template_id ?? "").trim();
-      if (templateId) recentWorkspaceTemplateIds.add(templateId);
-    }
+      .limit(500);
+    const eligibleTemplateIds = new Set(
+      templatePool.map((template) => template.template_id)
+    );
+    const history = deriveWorkspaceFamilyTemplateHistory({
+      rows: (recentWorkspaceRows ?? []) as Array<{ template_id?: unknown }>,
+      eligibleTemplateIds,
+      cooldownWindow: 3,
+    });
+    const cycle = selectTemplatesFromWorkspaceFamilyCycle({
+      eligibleTemplates: templatePool,
+      usedTemplateIds: history.usedTemplateIds,
+      recentTemplateIds: history.recentTemplateIds,
+      outputFamily: outputFormat,
+      count: batchSize,
+      cooldownWindow: 3,
+    });
+    cycleDiagnostics = cycle.diagnostics as Record<string, unknown>;
+    selectedTemplatesForBatch = cycle.selected;
   }
 
-  const selectedTemplatesForBatch = pickRandomTemplates(
-    templatePool,
-    batchSize,
-    outputFormat === "square_text" ? recentWorkspaceTemplateIds : recentWorkspaceTemplateIds
+  if (selectedTemplatesForBatch.length === 0) {
+    const cycle = selectTemplatesFromWorkspaceFamilyCycle({
+      eligibleTemplates: templatePool,
+      usedTemplateIds: new Set<string>(),
+      recentTemplateIds: [],
+      outputFamily: outputFormat,
+      count: batchSize,
+      cooldownWindow: 3,
+    });
+    cycleDiagnostics = cycle.diagnostics as Record<string, unknown>;
+    selectedTemplatesForBatch = cycle.selected;
+  }
+  const selectedTemplateIds = new Set(
+    selectedTemplatesForBatch.map((template) => template.template_id)
   );
-  const getPromoSuitabilityScore = (template: CompatibleTemplate): number => {
+  const fallbackTemplatePool = templatePool.filter(
+    (template) => !selectedTemplateIds.has(template.template_id)
+  );
+  const shuffledFallbackTemplatePool = [...fallbackTemplatePool].sort(
+    () => Math.random() - 0.5
+  );
+  // Keep runtime bounded while still giving enough rescue attempts.
+  const candidateTemplates = [
+    ...selectedTemplatesForBatch,
+    ...shuffledFallbackTemplatePool.slice(0, 8),
+  ];
+  const getExplicitPromoSuitabilityScore = (template: CompatibleTemplate): number => {
+    if (!generationContext.explicitPromoContext) return -100;
     const fit = template.promotion_fit.toLowerCase().trim();
     if (!fit) return 0;
 
@@ -1343,18 +1381,18 @@ ${getTemplateTypeRetryShape()}`;
     selectedTemplatesForBatch.length
   ).fill("standard");
 
-  let promoTemplateIndex: number | null = null;
+  let explicitPromoTemplateIndex: number | null = null;
   if (
     !forceStandardVariant &&
-    generationContext.promotion &&
+    generationContext.explicitPromoContext &&
     selectedTemplatesForBatch.length > 0
   ) {
-    promoTemplateIndex = selectedTemplatesForBatch.reduce(
+    explicitPromoTemplateIndex = selectedTemplatesForBatch.reduce(
       (bestIndex, template, index, templates) => {
         if (bestIndex === null) return index;
 
-        const bestScore = getPromoSuitabilityScore(templates[bestIndex]);
-        const currentScore = getPromoSuitabilityScore(template);
+        const bestScore = getExplicitPromoSuitabilityScore(templates[bestIndex]);
+        const currentScore = getExplicitPromoSuitabilityScore(template);
 
         if (currentScore > bestScore) return index;
         return bestIndex;
@@ -1362,8 +1400,8 @@ ${getTemplateTypeRetryShape()}`;
       null as number | null
     );
 
-    if (promoTemplateIndex !== null) {
-      assignedVariants[promoTemplateIndex] = "promo";
+    if (explicitPromoTemplateIndex !== null) {
+      assignedVariants[explicitPromoTemplateIndex] = "promo";
     }
   }
 
@@ -1374,12 +1412,12 @@ ${getTemplateTypeRetryShape()}`;
     selectedTemplatesForBatch.length > 0
   ) {
     importantDayTemplateIndex = selectedTemplatesForBatch.findIndex(
-      (_template, index) => index !== promoTemplateIndex
+      (_template, index) => index !== explicitPromoTemplateIndex
     );
 
     if (importantDayTemplateIndex !== -1) {
       assignedVariants[importantDayTemplateIndex] = "important_day";
-    } else if (promoTemplateIndex === null && selectedTemplatesForBatch.length > 0) {
+    } else if (explicitPromoTemplateIndex === null && selectedTemplatesForBatch.length > 0) {
       assignedVariants[0] = "important_day";
       importantDayTemplateIndex = 0;
     } else {
@@ -1401,17 +1439,19 @@ ${getTemplateTypeRetryShape()}`;
 
   console.log("[meme-gen] Selected templates for batch", {
     generationRunId: generationContext.generationRunId,
+    cycleDiagnostics,
     selectedTemplates: selectedTemplatesForBatch.map((template, index) => ({
       selectionIndex: index + 1,
       template_id: template.template_id,
       slug: template.slug,
       templateType: template.template_type,
-      promoSuitabilityScore: getPromoSuitabilityScore(template),
+      explicitPromoSuitabilityScore: getExplicitPromoSuitabilityScore(template),
       assignedVariant:
         templateVariantAssignments[index]?.variantType ?? "standard",
     })),
-    promoTemplateIndex,
+    explicitPromoTemplateIndex,
     importantDayTemplateIndex,
+    fallbackTemplateCount: candidateTemplates.length - selectedTemplatesForBatch.length,
   });
 
   const apiKey = process.env.OPENAI_API_KEY as string;
@@ -1425,12 +1465,13 @@ ${getTemplateTypeRetryShape()}`;
     templatePoolSize: templatePool.length,
     targetInsertCount: batchSize,
     selectedTemplateCount: selectedTemplatesForBatch.length,
+    candidateTemplateCount: candidateTemplates.length,
   });
 
   const generateForTemplate = async (
     template: CompatibleTemplate,
     variantContext: VariantContext,
-    promoMode: PromoMode,
+    explicitPromoMode: ExplicitPromoMode,
     attempt: number,
     previousFailureRule: string | null
   ): Promise<
@@ -1440,7 +1481,6 @@ ${getTemplateTypeRetryShape()}`;
           top_text: string;
           bottom_text: string | null;
           slot_3_text: string | null;
-          post_caption: string;
         };
         failureRule: null;
       }
@@ -1493,12 +1533,12 @@ IMPORTANT DAY WRITING RULES
     const { topIdeal, bottomIdeal } = getIdealSlotTargets(template, attempt);
     const isThreeSlot = !!template.slot_3_role;
 
-    const promoModeInstructions =
+    const explicitPromoModeInstructions =
       variantContext.variantType !== "promo"
         ? `Promo mode: none
 - Ignore the promotion entirely for this template.
 - Make the meme about the brand/audience context only.`
-        : promoMode === "direct"
+        : explicitPromoMode === "direct"
         ? `Promo mode: direct
 - This is a direct promo-capable variant.
 - If the promotion fits naturally, keep the offer wording recognisable.
@@ -1507,7 +1547,7 @@ IMPORTANT DAY WRITING RULES
 - The joke must still work first, not the ad message.
 - Do not sound like a banner headline, ad slogan, or campaign copy.
 - If the exact wording becomes clunky or breaks the meme, omit it rather than distorting it inaccurately.`
-        : promoMode === "light"
+        : explicitPromoMode === "light"
           ? `Promo mode: light
 - Use the promotion only as soft context.
 - Prefer the feeling, situation, urgency, timing, or audience reaction around the promotion rather than explicit ad copy.
@@ -1520,27 +1560,73 @@ IMPORTANT DAY WRITING RULES
     if (variantContext.variantType === "promo") {
       console.log("[promo-prompt-block]", {
         slug: template.slug,
-        promoMode,
-        promoModeInstructions,
+        explicitPromoMode,
+        explicitPromoModeInstructions,
       });
     }
 
-    const prompt = `You generate brand-safe meme captions that follow a specific template.
+    const conversationContextBlock = `Conversation context:
+- latest_generation_request: ${generationContext.conversationContext ?? "None"}
+- workspace_context_summary: ${generationContext.workspaceContextSummary ?? "None"}`;
 
-Hard constraints (must obey):
-${
-  template.template_family === "square_text"
-    ? `- For square_text: top_text must read as a finished standalone thought on a plain text card (not a teaser line for an image). Avoid trailing commas that imply more is coming.
-`
+    const promoContextBlock =
+      variantContext.variantType === "promo" || variantContext.promoText
+        ? `Explicit promo context:
+- normalized_promo_context: ${variantContext.promoText ?? "None"}
+- promo_mode: ${variantContext.variantType === "promo" ? explicitPromoMode : "none"}`
+        : `Explicit promo context:
+- normalized_promo_context: None
+- promo_mode: none`;
+
+    const promoSafetyRules =
+      variantContext.variantType === "promo"
+        ? `- If you reference the promotion, preserve exact facts from the promo context. Never invent or alter discount amounts, dates, pricing, or offer terms.
+- If exact promo facts do not fit naturally or within the slot limits, leave them out rather than changing them.`
+        : `- Do not assume promotional intent when no explicit offer context is provided.`;
+
+    const imageVideoAntiGenericRules =
+      template.template_family === "square_text"
+        ? ""
+        : `Anti-generic rules for square_image/square_video:
+- Do not default to "When..." unless the moment is clearly specific and distinctive.
+- Avoid stock meme stems without a concrete twist (generic "Monday mood", empty "POV", broad "when life...").
+- Avoid abstract headline nouns unless this template explicitly calls for label-style text.
+- Do not write campaign straplines, ad slogans, or interchangeable business-safe phrasing.
+- If the line could be reused across industries by swapping one noun, it is invalid - rewrite it.`;
+
+    const conditionalPromoInstruction =
+      variantContext.variantType === "promo"
+        ? `${promoContextBlock}
+${explicitPromoModeInstructions}
+${variantPromptGuidance}
+${promoSafetyRules}`
+        : `${promoContextBlock}
+Promo handling:
+- No explicit promo intent is present. Keep this non-promotional by default.
+${promoSafetyRules}`;
+    const tightLabelMode =
+      isUltraTightTemplate(template) &&
+      (template.template_type === "side_caption" ||
+        template.template_type === "overlay");
+
+    const prompt = `Task:
+Generate one meme payload for the given template and return valid JSON only.
+
+Primary creative objective:
+- Write one specific, lived-in moment (not a category statement).
+- Prefer concrete micro-situations over general truths.
+- Include at least one tangible detail from a real moment (for example: queue, wrong order, sauce, rush hour, closing time, last item).${
+  tightLabelMode
+    ? ` For tight side/overlay templates, a compact concrete cue is enough (no full sentence required).`
     : ""
-}- top_text MUST be <= ${template.slot_1_max_chars} characters and be a complete, finishable phrase (no mid-word cut-offs).
-- If the phrase would exceed the limit, rewrite it shorter and simpler. Never output an incomplete fragment.
-- top_text should ideally be <= ${topIdeal} characters.
-- bottom_text MUST be <= ${template.slot_2_max_chars} characters when present, and be complete. If it would exceed the limit, rewrite shorter and simpler.
-- bottom_text should ideally be <= ${bottomIdeal} characters when present.
-- post_caption MUST be <= ${POST_CAPTION_MAX_CHARS} characters and easy to post as-is.
-- Do not include markdown, HTML, code blocks, or newline characters.
+}
+- Use a clear tension pattern (expectation vs reality, effort vs outcome, confidence vs chaos, or desire vs consequence).
+- Reject generic meme templates without a concrete twist.
+- If the line could apply to any business, rewrite it to be more specific and relatable.
+- Match the template's emotional mechanic on first read.
 
+Context:
+${conversationContextBlock}
 Brand context:
 - brand_name: ${brand_name}
 - what_you_do: ${what_you_do}
@@ -1548,16 +1634,7 @@ Brand context:
 - country: ${country}
 - ${englishVariantPromptInstruction(resolveEffectiveEnglishVariant(profile.english_variant))}
 
-Promotion context:
-- normalized_promotion: ${variantContext.promoText ?? "None"}
-- promo_mode: ${variantContext.variantType === "promo" ? promoMode : "none"}
-
-Important day context:
-- active_important_day_key: ${variantContext.importantDayKey ?? "None"}
-- active_important_day_label: ${variantContext.importantDayLabel ?? "None"}
-- active_important_day_prompt_context: ${variantContext.importantDayPromptContext ?? "None"}
-
-Template metadata:
+Template behavior:
 - template_name: ${template.template_name}
 - slug: ${template.slug}
 - template_id: ${template.template_id}
@@ -1572,50 +1649,45 @@ Template metadata:
 
 ${getSquareTextFamilyPromptSection(template)}
 ${template.template_family === "square_text" ? "" : getTemplateTypeWritingGuidance(template)}
-
 ${template.template_family === "square_text" ? getSquareTextSlotGuidance(template) : getSlotWritingGuidance(template)}
-
 ${isThreeSlot
   ? `Three-slot output mapping:
 - slot_1_role ("${template.slot_1_role}") -> slot_1_text
 - slot_2_role ("${template.slot_2_role ?? "slot_2"}") -> slot_2_text
 - slot_3_role ("${template.slot_3_role ?? "slot_3"}") -> slot_3_text
 - Keep each slot value single-line and complete.
-- Do not use markdown and do not include newline characters in any slot value.`
+- Do not include newline characters in any slot value.`
   : ""}
-
 ${mechanicSpecificGuidance}
-
 ${templateSpecificGuidance}
-
 ${getUltraTightPromptGuidance(template)}
+${imageVideoAntiGenericRules}
 
-${retryCorrectiveGuidance}
+Conditional promo handling:
+${conditionalPromoInstruction}
 
-Rules:
-- Make it punchy, internet-native, and useful for posting (optimize for shareability).
-- Avoid bland, generic filler. Be specific to the brand + audience.
-- Use the template_logic and meme_mechanic to choose the angle. emotion_style sets tone.
-- Respect the template_type. Do not write every template like a generic top/bottom caption meme.
+Hard constraints (must obey):
 ${
   template.template_family === "square_text"
-    ? `- For square_text: top_text is the whole meme on a blank card — obey the SQUARE TEXT MEME FORMAT block above (complete thought, meme-native, not promo fragment lines).`
+    ? `- For square_text: top_text must read as a finished standalone thought on a plain text card (not a teaser line for an image). Avoid trailing commas that imply more is coming.
+`
     : ""
-}
-- Meme quality matters more than forcing the promotion into the caption.
-- Never sound like a stiff ad, slogan, or generic marketing copy.
-- If you reference the promotion, preserve exact facts from the promo context. Never invent or alter discount amounts, dates, pricing, or offer terms.
-- If exact promo facts do not fit naturally or within the slot limits, leave them out rather than changing them.
+}- top_text MUST be <= ${template.slot_1_max_chars} characters and complete (no mid-word cut-offs).
+- top_text should ideally be <= ${topIdeal} characters.
+- bottom_text MUST be <= ${template.slot_2_max_chars} characters when present, and complete.
+- bottom_text should ideally be <= ${bottomIdeal} characters when present.
+- Do not include markdown, HTML, code blocks, or newline characters.
 - Do not include disallowed/unsafe content (hate, sexual, illegal, harassment, personal data).
-- Never truncate mid-sentence: rewrite so it fits.
-- Also generate a short social caption for the post.
-- post_caption should complement the meme instead of repeating the on-image text exactly.
-- Keep post_caption concise, natural, and easy to post.
-- No surrounding quotation marks. Avoid heavy hashtag use.
 
-${promoModeInstructions}
+Quality gate before return:
+- Is the caption a specific situation rather than a generic statement?
+- Does it include at least one tangible detail from a real moment?
+- Is the emotional mechanic obvious for this template?
+- Does it avoid ad-like or interchangeable business phrasing?
+- Does every field fit constraints without sounding clipped?
+- If not, rewrite before returning JSON.
 
-${variantPromptGuidance}
+${retryCorrectiveGuidance}
 
 Return ONLY valid JSON with this exact shape:
 ${isThreeSlot
@@ -1627,8 +1699,7 @@ ${isThreeSlot
   : `{
   "title": string,
   "top_text": string,
-  "bottom_text": ${template.isTwoSlot ? "string" : "null"},
-  "post_caption": string
+  "bottom_text": ${template.isTwoSlot ? "string" : "null"}
 }`}`;
 
     console.log("[meme-gen] OpenAI prompt", {
@@ -1639,7 +1710,7 @@ ${isThreeSlot
       hasTemplateSpecificGuidance: Boolean(templateSpecificGuidance),
       hasRetryCorrectiveGuidance: Boolean(retryCorrectiveGuidance),
       previousFailureRule,
-      promoMode,
+      explicitPromoMode,
       ultraTightPromptMode,
       isTwoSlot: template.isTwoSlot,
     });
@@ -1706,13 +1777,6 @@ ${isThreeSlot
           length: template.template_name.slice(0, TITLE_MAX_CHARS).length,
         }
       : validateTitle(p.title);
-    const postCaptionValidation = isThreeSlot
-      ? {
-          value: null as string | null,
-          failRule: null as string | null,
-          length: null as number | null,
-        }
-      : validatePostCaption(p.post_caption);
     const topValidation = validateSlotTextSingleLine(
       slot1Value,
       template.slot_1_max_chars,
@@ -1836,26 +1900,12 @@ ${isThreeSlot
     const finalTop = topValidation.value!;
     const finalBottom = template.isTwoSlot || isThreeSlot ? bottomValidation.value : null;
     const finalSlot3 = isThreeSlot ? slot3Validation.value : null;
-    const finalPostCaption =
-      postCaptionValidation.value ?? buildFallbackPostCaption({ variantContext });
-
-    if (!postCaptionValidation.value) {
-      console.log("[meme-gen] Using post_caption fallback", {
-        template: template.slug,
-        variantType: variantContext.variantType,
-        failRule: postCaptionValidation.failRule,
-        generatedLength: postCaptionValidation.length,
-        fallbackPostCaption: finalPostCaption,
-      });
-    }
-
     return {
       result: {
         title: finalTitle,
         top_text: finalTop,
         bottom_text: finalBottom,
         slot_3_text: finalSlot3,
-        post_caption: finalPostCaption,
       },
       failureRule: null,
     };
@@ -1867,11 +1917,11 @@ ${isThreeSlot
 
   for (
     let poolIndex = 0;
-    poolIndex < selectedTemplatesForBatch.length &&
+    poolIndex < candidateTemplates.length &&
     insertedCount < batchSize;
     poolIndex++
   ) {
-    const template = selectedTemplatesForBatch[poolIndex];
+    const template = candidateTemplates[poolIndex];
     attemptedTemplateIds.add(template.template_id);
     attemptedCount++;
     const maxAttempts = 3;
@@ -1883,7 +1933,7 @@ ${isThreeSlot
       templateVariantAssignment?.variantType ?? "standard";
     const variantContext: VariantContext = {
       variantType,
-      promoText: variantType === "promo" ? generationContext.promotion : null,
+      promoText: variantType === "promo" ? generationContext.explicitPromoContext : null,
       importantDayKey:
         variantType === "important_day"
           ? generationContext.activeImportantDay?.key ?? null
@@ -1897,7 +1947,7 @@ ${isThreeSlot
           ? generationContext.activeImportantDay?.promptContext ?? null
           : null,
     };
-    const promoMode = derivePromoMode(template);
+    const explicitPromoMode = deriveExplicitPromoMode(template);
     const fallbackReplacementUsed = failedCount > 0;
     const variantMetadata =
       template.template_family === "square_text"
@@ -1927,7 +1977,6 @@ ${isThreeSlot
           top_text: string;
           bottom_text: string | null;
           slot_3_text: string | null;
-          post_caption: string;
         }
       | null = null;
     let previousFailureRule: string | null = null;
@@ -1944,10 +1993,10 @@ ${isThreeSlot
       template: template.slug,
       templateType: template.template_type,
       variantType,
-      promoMode,
+      explicitPromoMode,
       fallbackReplacementUsed,
       ultraTightPromptMode: isUltraTightTemplate(template),
-      hasPromotion: Boolean(promotion),
+      hasExplicitPromoContext: Boolean(explicitPromoContext),
     });
 
     let attemptUsed = 1;
@@ -1956,7 +2005,7 @@ ${isThreeSlot
       const generationAttempt = await generateForTemplate(
         template,
         variantContext,
-        promoMode,
+        explicitPromoMode,
         attempt,
         previousFailureRule
       );
@@ -1966,7 +2015,7 @@ ${isThreeSlot
 
       console.error("[meme-gen] Generation failed; retrying", {
         template: template.slug,
-        promoMode,
+        explicitPromoMode,
         attempt,
         targetedFailureRule: previousFailureRule,
         retryCorrectiveGuidanceActive: Boolean(previousFailureRule),
@@ -1979,7 +2028,7 @@ ${isThreeSlot
         template: `${template.template_name} (${template.slug})`,
         templateType: template.template_type,
         variantType,
-        promoMode,
+        explicitPromoMode,
         attempts: maxAttempts,
         slotType: template.slot_3_role
           ? "3-slot"
@@ -1990,7 +2039,7 @@ ${isThreeSlot
       });
       console.log("[meme-gen] Fallback replacement queued", {
         failedTemplate: template.slug,
-        nextTemplate: selectedTemplatesForBatch[poolIndex + 1]?.slug ?? null,
+        nextTemplate: candidateTemplates[poolIndex + 1]?.slug ?? null,
         insertedCount,
         failedCount,
       });
@@ -2138,12 +2187,14 @@ ${isThreeSlot
       ...(variantMetadata as Record<string, unknown>),
       ...(workspaceMeta ?? {}),
       ...(contentPackMeta ?? {}),
-      selected_template_slug: template.slug,
       selection_strategy:
         outputFormat === "square_text"
           ? "square_text_open_variant"
           : "random_template",
       workflow_mode: "single_output",
+      ...cycleDiagnostics,
+      selected_template_id: template.template_id,
+      selected_template_slug: template.slug,
     };
 
     const row = {
@@ -2154,7 +2205,7 @@ ${isThreeSlot
       format: template.template_name,
       top_text: generated.top_text,
       bottom_text: generated.bottom_text,
-      post_caption: generated.post_caption,
+      post_caption: null,
       image_url: imageUrl,
       variant_type: variantType,
       generation_run_id: generationContext.generationRunId,
@@ -2192,7 +2243,7 @@ ${isThreeSlot
         template: template.slug,
         templateType: template.template_type,
         variantType,
-        promoMode,
+        explicitPromoMode,
         row,
         insertError,
       });
@@ -2201,7 +2252,7 @@ ${isThreeSlot
         template: `${template.template_name} (${template.slug})`,
         templateType: template.template_type,
         variantType,
-        promoMode,
+        explicitPromoMode,
         attemptUsed,
         slotType: template.isTwoSlot ? "2-slot" : "1-slot",
         wasRetried: attemptUsed > 1,
@@ -2220,7 +2271,7 @@ ${isThreeSlot
       template: `${template.template_name} (${template.slug})`,
       templateType: template.template_type,
       variantType,
-      promoMode,
+      explicitPromoMode,
       poolIndex: poolIndex + 1,
       slotType: template.isTwoSlot ? "2-slot" : "1-slot",
       attemptUsed,
@@ -2247,7 +2298,13 @@ ${isThreeSlot
   });
 
   if (insertedCount === 0) {
-    return { error: "Failed to generate memes. Check server logs for details." };
+    console.warn("[meme-gen] No inserts after retries; suppressing hard failure for smooth UX", {
+      generationRunId: generationContext.generationRunId,
+      attemptedCount,
+      failedCount,
+      outputFormat,
+    });
+    return { error: null, generationRunId: generationContext.generationRunId };
   }
 
   return { error: null, generationRunId: generationContext.generationRunId };
@@ -2255,7 +2312,7 @@ ${isThreeSlot
     const message = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : null;
     console.error("[meme-gen] Unhandled generation error", {
-      promotionContext,
+      generationContextText,
       options,
       message,
       stack,

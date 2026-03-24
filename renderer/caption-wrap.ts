@@ -126,10 +126,6 @@ function estimateTopCaptionWidthPx(
   );
 }
 
-// For square top-captions, a line that is technically valid but nearly full-width
-// reads cramped. Treat only clearly comfortable lines as single-line.
-const SINGLE_LINE_COMFORT_RATIO = 0.98;
-
 function normalizeTopCaptionLayoutType(value: unknown): string {
   return String(value ?? "")
     .trim()
@@ -182,13 +178,12 @@ export function wrapSquareTopCaptionScoped(params: {
   }
 
   const slotWidthPx = Math.max(1, params.slotWidthPx);
-  const slotComfortWidthPx = slotWidthPx * SINGLE_LINE_COMFORT_RATIO;
   const oneLineWidth = estimateTopCaptionWidthPx(
     normalized,
     params.fontSize,
     params.fontFamily ?? null
   );
-  const oneLineComfortable = oneLineWidth <= slotComfortWidthPx;
+  const oneLineFits = oneLineWidth <= slotWidthPx;
 
   const logDecision = (
     decision: "one_line" | "two_lines",
@@ -204,14 +199,13 @@ export function wrapSquareTopCaptionScoped(params: {
       caption: normalized,
       measuredOneLineWidth: Math.round(oneLineWidth * 100) / 100,
       slotWidth: Math.round(slotWidthPx * 100) / 100,
-      comfortWidth: Math.round(slotComfortWidthPx * 100) / 100,
-      comfortCheckPassed: oneLineComfortable,
+      fitCheckPassed: oneLineFits,
       decision,
       trigger,
     });
   };
 
-  if (oneLineComfortable) {
+  if (oneLineFits) {
     logDecision("one_line", "comfort_check_passed");
     return [normalized];
   }
@@ -236,6 +230,9 @@ export function wrapSquareTopCaptionScoped(params: {
       splitCandidates.push(rightIndex);
     }
   }
+  let bestLaterSplit:
+    | { left: string; right: string; splitIndex: number }
+    | null = null;
   for (const splitIndex of splitCandidates) {
     const left = words.slice(0, splitIndex).join(" ");
     const right = words.slice(splitIndex).join(" ");
@@ -250,9 +247,14 @@ export function wrapSquareTopCaptionScoped(params: {
       params.fontFamily ?? null
     );
     if (leftWidth <= slotWidthPx && rightWidth <= slotWidthPx) {
-      logDecision("two_lines", "midpoint_split_fit");
-      return [left, right];
+      if (!bestLaterSplit || splitIndex > bestLaterSplit.splitIndex) {
+        bestLaterSplit = { left, right, splitIndex };
+      }
     }
+  }
+  if (bestLaterSplit) {
+    logDecision("two_lines", "midpoint_split_fit");
+    return [bestLaterSplit.left, bestLaterSplit.right];
   }
 
   // Safety fallback: width-constrained greedy wrap (still word-boundary first).

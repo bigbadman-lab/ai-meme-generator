@@ -95,7 +95,6 @@ export type SlideshowLlmOutputDraft = {
   slide_count?: unknown;
   slideshow_intent?: unknown;
   slides?: unknown;
-  post_caption?: unknown;
 };
 
 /** Validated slide (generation pipeline). */
@@ -110,7 +109,6 @@ export type ValidatedSlideshowPayload = {
   slide_count: 3 | 4 | 5;
   slideshow_intent: string;
   slides: ValidatedSlideshowSlide[];
-  post_caption: string;
 };
 
 /** Persisted inside generated_memes.variant_metadata for slideshow rows. */

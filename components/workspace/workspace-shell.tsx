@@ -166,7 +166,7 @@ export function WorkspaceShell({
           </span>
         </div>
         <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-          <div className="min-h-[112px] flex-1 overflow-y-auto pr-1">
+          <div className="min-h-[160px] flex-1 overflow-y-auto pr-1 lg:min-h-[190px]">
             <MessageList
               messages={sidebarMessages}
               onPillClick={submitMessage}

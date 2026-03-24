@@ -187,6 +187,9 @@ export async function createWorkspaceFromPrompt(
       based_on_job_id: null,
       based_on_output_ids: [],
       deferred_followup: false,
+      explicit_promo_intent: false,
+      promo_context_excerpt: null,
+      workspace_context_summary: normalizedPrompt,
       source: "workspace_initial_prompt",
     } as Json,
   });
@@ -692,6 +695,7 @@ export async function sendWorkspaceMessage(
     outputFormat: resolvedOutputFormat,
     variantCount: requestedVariantCount,
     relationToPreviousJob: plan.relation_to_previous_job,
+    explicitPromoIntent: plan.explicit_promo_intent,
     resolvedPromptPreview: resolvedPrompt.slice(0, 220),
   });
 
@@ -704,6 +708,8 @@ export async function sendWorkspaceMessage(
       intent: plan.intent,
       confidence: plan.confidence,
       relation_to_previous_job: plan.relation_to_previous_job,
+      explicit_promo_intent: plan.explicit_promo_intent,
+      promo_context_excerpt: plan.promo_context_excerpt ?? null,
       ui_pills: plan.ui_pills ?? [],
       suggested_formats: plan.suggested_formats ?? [],
       suggested_actions: plan.suggested_actions ?? [],
@@ -731,6 +737,10 @@ export async function sendWorkspaceMessage(
       relation_to_previous_job: plan.relation_to_previous_job,
       trigger_message_id: userMessage?.id ?? null,
       deferred_from_intent: plan.intent,
+      explicit_promo_intent: plan.explicit_promo_intent,
+      promo_context_excerpt: plan.promo_context_excerpt ?? null,
+      workspace_context_summary:
+        String(workspace.business_summary ?? workspace.initial_prompt ?? "").trim() || null,
       based_on_job_id: latestJobRow?.id ?? null,
       based_on_output_ids: [],
     } as Json;
@@ -991,6 +1001,10 @@ export async function sendWorkspaceMessage(
       source: "workspace_send_message",
       intent: plan.intent,
       relation_to_previous_job: plan.relation_to_previous_job,
+      explicit_promo_intent: plan.explicit_promo_intent,
+      promo_context_excerpt: plan.promo_context_excerpt ?? null,
+      workspace_context_summary:
+        String(workspace.business_summary ?? workspace.initial_prompt ?? "").trim() || null,
     } as Json,
   });
   const queued = await enqueueGenerationJob({

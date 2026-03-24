@@ -21,6 +21,9 @@ type FollowupPayload = {
   based_on_job_id?: unknown;
   based_on_output_ids?: unknown;
   deferred_from_intent?: unknown;
+  explicit_promo_intent?: unknown;
+  promo_context_excerpt?: unknown;
+  workspace_context_summary?: unknown;
 };
 
 type JobRow = {
@@ -178,10 +181,28 @@ export async function runGenerationPlan(params: {
   generationRunId: string;
 }) {
   const { job, workspace, generationRunId } = params;
+  const metadata =
+    job.metadata && typeof job.metadata === "object"
+      ? (job.metadata as Record<string, unknown>)
+      : {};
+  const explicitPromoIntent = Boolean(metadata.explicit_promo_intent);
+  const explicitPromoContext = explicitPromoIntent
+    ? String(metadata.promo_context_excerpt ?? "").trim() || null
+    : null;
+  const workspaceContextSummary =
+    String(
+      metadata.workspace_context_summary ??
+        workspace.business_summary ??
+        workspace.initial_prompt ??
+        ""
+    ).trim() || null;
+
   return generateMockMemes(job.prompt, {
     limit: job.requested_variant_count || 1,
     outputFormat: job.output_format ?? "square_text",
     generationRunIdOverride: generationRunId,
+    explicitPromoContext,
+    workspaceContextSummary,
     workspaceContext: {
       allowAnonymousWrite: true,
       actorUserId: workspace.user_id,
@@ -369,6 +390,32 @@ export async function runGenerationJob(
       typeof selectedOutput.variant_metadata === "object"
         ? String((selectedOutput.variant_metadata as Record<string, unknown>).workflow_mode ?? "")
         : "";
+    const selectionScope =
+      selectedOutput?.variant_metadata &&
+      typeof selectedOutput.variant_metadata === "object"
+        ? String((selectedOutput.variant_metadata as Record<string, unknown>).selection_scope ?? "")
+        : "";
+    const cycleResetApplied =
+      selectedOutput?.variant_metadata &&
+      typeof selectedOutput.variant_metadata === "object"
+        ? Boolean(
+            (selectedOutput.variant_metadata as Record<string, unknown>)
+              .cycle_reset_applied
+          )
+        : false;
+    const cycleExhausted =
+      selectedOutput?.variant_metadata &&
+      typeof selectedOutput.variant_metadata === "object"
+        ? Boolean(
+            (selectedOutput.variant_metadata as Record<string, unknown>)
+              .cycle_exhausted
+          )
+        : false;
+    const selectionStage =
+      selectedOutput?.variant_metadata &&
+      typeof selectedOutput.variant_metadata === "object"
+        ? String((selectedOutput.variant_metadata as Record<string, unknown>).selection_stage ?? "")
+        : "";
 
     const existingJobMetadata =
       job.metadata && typeof job.metadata === "object"
@@ -394,6 +441,22 @@ export async function runGenerationJob(
             (job.output_format === "square_text"
               ? "square_text_open_variant"
               : "random_template"),
+          selection_scope:
+            String(existingJobMetadata.selection_scope ?? "") ||
+            selectionScope ||
+            "workspace_family_cycle",
+          cycle_exhausted:
+            typeof existingJobMetadata.cycle_exhausted === "boolean"
+              ? existingJobMetadata.cycle_exhausted
+              : cycleExhausted,
+          cycle_reset_applied:
+            typeof existingJobMetadata.cycle_reset_applied === "boolean"
+              ? existingJobMetadata.cycle_reset_applied
+              : cycleResetApplied,
+          selection_stage:
+            String(existingJobMetadata.selection_stage ?? "") ||
+            selectionStage ||
+            null,
           selected_template_id: selectedTemplateId,
           selected_template_slug: selectedTemplateSlug || null,
           based_on_job_id:
@@ -447,6 +510,13 @@ export async function runGenerationJob(
             .filter(Boolean)
         : [];
       const deferredFromIntent = String(payload.deferred_from_intent ?? "").trim() || null;
+      const explicitPromoIntent = Boolean(payload.explicit_promo_intent);
+      const promoContextExcerpt = explicitPromoIntent
+        ? String(payload.promo_context_excerpt ?? "").trim() || null
+        : null;
+      const workspaceContextSummary =
+        String(payload.workspace_context_summary ?? ws.business_summary ?? ws.initial_prompt ?? "").trim() ||
+        null;
 
       await admin
         .schema("public")
@@ -504,6 +574,9 @@ export async function runGenerationJob(
               based_on_output_ids: basedOnOutputIds,
               deferred_followup: true,
               deferred_from_intent: deferredFromIntent,
+              explicit_promo_intent: explicitPromoIntent,
+              promo_context_excerpt: promoContextExcerpt,
+              workspace_context_summary: workspaceContextSummary,
             } as Json,
           });
           const queuedFollowup = await enqueueGenerationJob({

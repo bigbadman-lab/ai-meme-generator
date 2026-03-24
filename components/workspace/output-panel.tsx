@@ -71,6 +71,15 @@ export function OutputPanel({
 }) {
   const [notice, setNotice] = useState<string | null>(null);
   const slideTrackRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [zoomedSlideshow, setZoomedSlideshow] = useState<{
+    outputId: string;
+    slideUrls: string[];
+    index: number;
+  } | null>(null);
+  const [zoomedOutput, setZoomedOutput] = useState<{
+    url: string;
+    mediaType: "video" | "image";
+  } | null>(null);
 
   async function copyText(value: string, successText: string) {
     try {
@@ -103,6 +112,44 @@ export function OutputPanel({
     const step = card?.offsetWidth ? card.offsetWidth + 8 : Math.round(track.clientWidth * 0.8);
     const delta = direction === "next" ? step : -step;
     track.scrollBy({ left: delta, behavior: "smooth" });
+  }
+
+  async function handleDownloadAllSlides(
+    slideUrls: string[],
+    outputId: string
+  ): Promise<void> {
+    if (slideUrls.length === 0) return;
+    setNotice("Preparing zip download...");
+    try {
+      const response = await fetch(
+        `/api/workspace/slideshow-zip?workspaceId=${encodeURIComponent(
+          workspaceId
+        )}&outputId=${encodeURIComponent(outputId)}`,
+        { method: "GET" }
+      );
+      if (!response.ok) {
+        const message = await response.text().catch(() => "");
+        throw new Error(message || "Could not create zip download.");
+      }
+
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `mimly-${outputId}-slides.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(downloadUrl);
+
+      setNotice(`Downloaded ${slideUrls.length} slides as zip.`);
+      setTimeout(() => setNotice(null), 1800);
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "Could not download slides."
+      );
+      setTimeout(() => setNotice(null), 2200);
+    }
   }
 
   if (!latestJob) {
@@ -257,26 +304,66 @@ export function OutputPanel({
                       <div
                         key={`${output.id}-slide-${slideIndex}`}
                         data-slide-card="true"
-                        className="min-w-[72%] snap-start overflow-hidden rounded-xl border border-stone-200 bg-stone-100 sm:min-w-[58%]"
+                        className="min-w-[82%] snap-start overflow-hidden rounded-xl border border-stone-200 bg-stone-100 sm:min-w-[68%]"
                       >
                         <div className="aspect-[9/16]">
-                          <img
-                            src={slideUrl}
-                            alt={`Slide ${slideIndex + 1}`}
-                            className="h-full w-full object-cover"
-                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setZoomedSlideshow({
+                                outputId: output.id,
+                                slideUrls: slideshowSlideUrls,
+                                index: slideIndex,
+                              })
+                            }
+                            className="h-full w-full"
+                            title="Open slide"
+                          >
+                            <img
+                              src={slideUrl}
+                              alt={`Slide ${slideIndex + 1}`}
+                              className="h-full w-full object-cover transition hover:scale-[1.01]"
+                            />
+                          </button>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               ) : (
-                <div className="aspect-square bg-stone-100">
+                <div className="relative aspect-square bg-stone-100">
                   {url ? (
                     mediaType === "video" ? (
-                      <video src={url} controls className="h-full w-full object-cover" />
+                      <>
+                        <video src={url} controls className="h-full w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setZoomedOutput({
+                              url,
+                              mediaType,
+                            })
+                          }
+                          className="absolute right-2 top-2 rounded-full border border-white/70 bg-black/45 px-2 py-1 text-[10px] font-medium text-white backdrop-blur-sm transition hover:bg-black/60"
+                          title="Open fullscreen"
+                        >
+                          Zoom
+                        </button>
+                      </>
                     ) : (
-                      <img src={url} alt={output.title ?? "Generated output"} className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setZoomedOutput({
+                            url,
+                            mediaType,
+                          })
+                        }
+                        className="h-full w-full"
+                        title="Open fullscreen"
+                      >
+                        <img src={url} alt={output.title ?? "Generated output"} className="h-full w-full object-cover transition hover:scale-[1.01]" />
+                      </button>
                     )
                   ) : (
                     <div className="flex h-full items-center justify-center text-xs text-stone-500">
@@ -287,15 +374,27 @@ export function OutputPanel({
               )}
               <div className="p-3.5">
                 <div className="flex flex-wrap gap-2">
-                  <a
-                    href={url || "#"}
-                    download
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-100"
-                  >
-                    Download
-                  </a>
+                  {isSlideshow ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleDownloadAllSlides(slideshowSlideUrls, output.id)
+                      }
+                      className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-100"
+                    >
+                      Download slides
+                    </button>
+                  ) : (
+                    <a
+                      href={url || "#"}
+                      download
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-100"
+                    >
+                      Download
+                    </a>
+                  )}
                   <button
                     type="button"
                     onClick={() =>
@@ -370,6 +469,110 @@ export function OutputPanel({
           );
         })}
       </div>
+      {zoomedSlideshow ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4"
+          onClick={() => setZoomedSlideshow(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl rounded-2xl border border-white/20 bg-black/30 p-3 backdrop-blur"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between text-xs text-white/80">
+              <span>
+                Slide {zoomedSlideshow.index + 1} of {zoomedSlideshow.slideUrls.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setZoomedSlideshow(null)}
+                className="rounded-full border border-white/30 px-2 py-0.5 text-white transition hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+            <div className="relative mx-auto max-h-[82vh] max-w-[68vh] overflow-hidden rounded-xl border border-white/20 bg-black">
+              <img
+                src={zoomedSlideshow.slideUrls[zoomedSlideshow.index] ?? ""}
+                alt={`Zoomed slide ${zoomedSlideshow.index + 1}`}
+                className="h-full w-full object-contain"
+              />
+            </div>
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                disabled={zoomedSlideshow.index <= 0}
+                onClick={() =>
+                  setZoomedSlideshow((current) =>
+                    current
+                      ? { ...current, index: Math.max(0, current.index - 1) }
+                      : current
+                  )
+                }
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                disabled={zoomedSlideshow.index >= zoomedSlideshow.slideUrls.length - 1}
+                onClick={() =>
+                  setZoomedSlideshow((current) =>
+                    current
+                      ? {
+                          ...current,
+                          index: Math.min(
+                            current.slideUrls.length - 1,
+                            current.index + 1
+                          ),
+                        }
+                      : current
+                  )
+                }
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/30 text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                →
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {zoomedOutput ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4"
+          onClick={() => setZoomedOutput(null)}
+        >
+          <div
+            className="relative w-full max-w-4xl rounded-2xl border border-white/20 bg-black/30 p-3 backdrop-blur"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-end text-xs text-white/80">
+              <button
+                type="button"
+                onClick={() => setZoomedOutput(null)}
+                className="rounded-full border border-white/30 px-2 py-0.5 text-white transition hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+            <div className="relative mx-auto max-h-[84vh] overflow-hidden rounded-xl border border-white/20 bg-black">
+              {zoomedOutput.mediaType === "video" ? (
+                <video
+                  src={zoomedOutput.url}
+                  controls
+                  autoPlay
+                  className="max-h-[80vh] w-full object-contain"
+                />
+              ) : (
+                <img
+                  src={zoomedOutput.url}
+                  alt="Zoomed output"
+                  className="max-h-[80vh] w-full object-contain"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
