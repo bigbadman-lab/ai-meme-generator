@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
+  deleteWorkspaceOutput,
   getWorkspaceState,
   pinWorkspaceOutput,
   sendWorkspaceMessage,
@@ -112,7 +113,7 @@ export function WorkspaceShell({
 
   return (
     <div className="space-y-4">
-      <header className="flex min-h-14 flex-wrap items-center justify-between gap-2 rounded-2xl border border-stone-200/90 bg-white/95 px-3 py-2 shadow-[0_6px_18px_rgba(20,20,20,0.06)] sm:h-14 sm:flex-nowrap sm:px-4 sm:py-0">
+      <header className="flex min-h-14 flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/45 bg-white/45 px-3 py-2 shadow-[0_6px_20px_rgba(20,20,20,0.05)] backdrop-blur-md sm:h-14 sm:flex-nowrap sm:px-4 sm:py-0 lg:sticky lg:top-4 lg:z-30">
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
             href="/"
@@ -144,7 +145,7 @@ export function WorkspaceShell({
       </header>
 
       <div className="grid min-h-[calc(100vh-9.5rem)] gap-4 lg:grid-cols-[340px_1fr] lg:gap-5">
-      <aside className="order-1 flex h-[52vh] min-h-[440px] flex-col rounded-3xl border border-stone-200/80 bg-stone-50/80 p-3.5 shadow-[0_8px_28px_rgba(10,10,10,0.05)] sm:h-[58vh] sm:p-4 lg:h-[76vh] lg:min-h-[640px] lg:max-h-[760px] lg:self-start">
+      <aside className="order-1 flex h-[52vh] min-h-[440px] flex-col overflow-hidden rounded-3xl border border-stone-200/80 bg-stone-50/80 p-3.5 shadow-[0_8px_28px_rgba(10,10,10,0.05)] sm:h-[58vh] sm:p-4 lg:sticky lg:top-[5.5rem] lg:h-[76vh] lg:min-h-[640px] lg:max-h-[760px] lg:self-start">
         <div className="flex items-center justify-between gap-2 px-0.5">
           <div
             aria-label="Chat"
@@ -164,8 +165,8 @@ export function WorkspaceShell({
             {displayStatusLabel.replace("_", " ")}
           </span>
         </div>
-        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
-          <div className="min-h-[112px] max-h-[170px] overflow-y-auto pr-1 lg:max-h-[190px]">
+        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+          <div className="min-h-[112px] flex-1 overflow-y-auto pr-1">
             <MessageList
               messages={sidebarMessages}
               onPillClick={submitMessage}
@@ -173,7 +174,7 @@ export function WorkspaceShell({
           </div>
 
           {isJobActive ? (
-            <div className="rounded-2xl border border-sky-100 bg-white/80 px-3 py-2">
+            <div className="shrink-0 rounded-2xl border border-sky-100 bg-white/80 px-3 py-2">
               <div className="flex items-center gap-2 text-xs text-sky-700">
                 <div className="flex items-center gap-1">
                   <span
@@ -194,7 +195,7 @@ export function WorkspaceShell({
             </div>
           ) : null}
 
-          <div className="border-t border-stone-200/90 bg-stone-50/90 pt-3">
+          <div className="shrink-0 border-t border-stone-200/90 bg-stone-50/90 pt-3">
             <PromptComposer
               disabled={isAuthLocked || isPlanLocked}
               disabledPlaceholder={
@@ -209,22 +210,26 @@ export function WorkspaceShell({
             {error ? <p className="mt-2 text-xs text-rose-600">{error}</p> : null}
           </div>
 
-          <div className="rounded-2xl border border-stone-200/90 bg-white/70 px-3 py-3 text-[11px] leading-relaxed text-stone-500">
+          <div className="hidden shrink-0 rounded-2xl border border-stone-200/90 bg-white/70 px-3 py-3 text-[11px] leading-relaxed text-stone-500 lg:block">
             <p className="mb-2 text-xs font-semibold text-stone-700">How Mimly works</p>
-            <p>Each message creates one result.</p>
-            <p>Ask for “more ideas” to get another version.</p>
-            <p className="mt-2">Your latest prompt guides what happens next.</p>
-            <p>You can switch topics anytime.</p>
-            <p className="mt-2">You can create:</p>
-            <p>Image • Video • Text • Slideshow</p>
-            <p className="mt-2">Optimised for social:</p>
-            <p>1080×1080 or 1080×1920 (feeds, reels, TikTok).</p>
+            <p>Each message generates one piece of content.</p>
+            <p>Ask for “more ideas” to get another variation in the same format.</p>
             <p className="mt-2">
-              Mimly works best when your prompt is specific.
+              You can switch topics at any time — no need to start over.
             </p>
+            <p className="mt-2">Pin results you like to keep them at the top of your workspace.</p>
             <p className="mt-2">
-              Mimly generates all content using our AI context engine that was built in-house.
+              Mimly is a guided creative tool, not a fully open-ended AI — clearer prompts lead to better results.
             </p>
+            <p className="mt-2 text-xs font-semibold text-stone-700">Available formats</p>
+            <p>Image memes (1080x1080)</p>
+            <p>Video memes (1080x1080)</p>
+            <p>Text memes (1080x1080)</p>
+            <p>Slideshows (1080x1920)</p>
+            <p className="mt-2 text-xs font-semibold text-stone-700">Tips for best results</p>
+            <p>Be specific if you want high-quality, targeted content.</p>
+            <p>Keep it broad if you&apos;re exploring ideas.</p>
+            <p className="mt-2">All content is generated using Mimly’s AI context engine, designed to turn prompts into viral-ready formats.</p>
           </div>
         </div>
       </aside>
@@ -240,6 +245,19 @@ export function WorkspaceShell({
             const result = shouldPin
               ? await pinWorkspaceOutput(workspaceId, outputId)
               : await unpinWorkspaceOutput(workspaceId, outputId);
+            if (result.error) {
+              setError(result.error);
+              return;
+            }
+            const next = await getWorkspaceState(workspaceId);
+            if (next.error || !next.state) {
+              setError(next.error ?? "Failed to refresh workspace state.");
+              return;
+            }
+            setState(next.state);
+          }}
+          onDeleteOutput={async (outputId) => {
+            const result = await deleteWorkspaceOutput(workspaceId, outputId);
             if (result.error) {
               setError(result.error);
               return;

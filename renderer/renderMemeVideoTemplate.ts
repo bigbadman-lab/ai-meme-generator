@@ -6,9 +6,11 @@ import {
   renderTopCaptionOverlayPng,
   type MemeTemplateForRender,
 } from "@/renderer/renderMemeTemplate";
-import { wrapCaptionWithSoftEarlySplit } from "@/renderer/caption-wrap";
+import { wrapCaptionWithSoftEarlySplit, wrapSquareTopCaptionScoped } from "@/renderer/caption-wrap";
 
 type MemeVideoTemplateForRender = {
+  template_family?: string | null;
+  text_layout_type?: string | null;
   canvas_width?: number | null;
   canvas_height?: number | null;
   slot_1_x?: number | null;
@@ -101,11 +103,22 @@ export async function renderMemeMP4FromTemplate(params: {
   const maxLines = params.template.slot_1_max_lines ?? 2;
   const fontSize = params.template.font_size ?? 46;
   const lineHeight = Math.round(fontSize * 1.2);
-  const lines = wrapCaptionWithSoftEarlySplit(params.topText, maxChars, maxLines);
+  const lines = wrapSquareTopCaptionScoped({
+    text: params.topText,
+    maxChars,
+    maxLines,
+    slotWidthPx: slotWidth,
+    fontSize,
+    fontFamily: params.template.font ?? null,
+    templateFamily: params.template.template_family ?? null,
+    textLayoutType: params.template.text_layout_type ?? null,
+  });
+  const safeLines =
+    lines.length > 0 ? lines : wrapCaptionWithSoftEarlySplit(params.topText, maxChars, maxLines);
   const alignment =
-    lines.length > 1 ? "left" : (params.template.alignment ?? "center").toLowerCase();
-  const textValue = lines.join("\n");
-  const lineCount = Math.max(1, lines.length);
+    safeLines.length > 1 ? "left" : (params.template.alignment ?? "center").toLowerCase();
+  const textValue = safeLines.join("\n");
+  const lineCount = Math.max(1, safeLines.length);
   const totalTextHeight = lineCount * lineHeight;
   const startY = Math.round(slotY + (slotHeight - totalTextHeight) / 2 + fontSize);
   const xExpr =

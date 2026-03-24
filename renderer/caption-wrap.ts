@@ -1,4 +1,4 @@
-import { measureSquareTextLineWidthPx } from "@/renderer/square-text-measure";
+import { measureLineWidthPx, measureSquareTextLineWidthPx } from "@/renderer/square-text-measure";
 
 export const SOFT_WRAP_RATIO = 0.84;
 export const MIN_WORDS_FOR_SOFT_WRAP = 6;
@@ -110,6 +110,165 @@ export function wrapCaptionWithSoftEarlySplit(
 
   const balanced = getBalancedTwoLineSplit(normalized, maxChars);
   return balanced ? [balanced[0], balanced[1]] : baseLines;
+}
+
+function estimateTopCaptionWidthPx(
+  text: string,
+  fontSize: number,
+  fontFamily?: string | null
+): number {
+  return measureLineWidthPx(
+    text,
+    fontSize,
+    fontFamily && String(fontFamily).trim()
+      ? String(fontFamily)
+      : "Arial, Helvetica, sans-serif"
+  );
+}
+
+// For square top-captions, a line that is technically valid but nearly full-width
+// reads cramped. Treat only clearly comfortable lines as single-line.
+const SINGLE_LINE_COMFORT_RATIO = 0.98;
+
+function normalizeTopCaptionLayoutType(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+}
+
+function isTopCaptionStyleLayout(layoutType: string): boolean {
+  return layoutType === "top_caption" || layoutType === "";
+}
+
+function isSquareMemeFamily(family: unknown): boolean {
+  const normalized = String(family ?? "").trim().toLowerCase();
+  return normalized === "square_image" || normalized === "square_video";
+}
+
+/**
+ * Scoped top-caption logic for square image/video templates:
+ * - try single-line first
+ * - only wrap when single-line exceeds slot width
+ * - wrap via deterministic midpoint word-boundary split
+ */
+export function wrapSquareTopCaptionScoped(params: {
+  text: string;
+  maxChars: number;
+  maxLines: number;
+  slotWidthPx: number;
+  fontSize: number;
+  fontFamily?: string | null;
+  templateFamily?: string | null;
+  textLayoutType?: string | null;
+}): string[] {
+  const normalized = normalizeCaptionText(params.text);
+  if (!normalized) return [];
+
+  const debugCaptions = new Set([
+    "when the diy project goes sideways but you stay cool",
+    "when you're surrounded by flowers but can't choose",
+    "when you open a flower shop and no one comes",
+    "when you find out your plumbing's leaking again",
+  ]);
+  const debugEnabled = debugCaptions.has(normalized.toLowerCase());
+
+  const layoutType = normalizeTopCaptionLayoutType(params.textLayoutType);
+  const scoped =
+    isSquareMemeFamily(params.templateFamily) && isTopCaptionStyleLayout(layoutType);
+
+  if (!scoped) {
+    return wrapCaptionWithSoftEarlySplit(normalized, params.maxChars, params.maxLines);
+  }
+
+  const slotWidthPx = Math.max(1, params.slotWidthPx);
+  const slotComfortWidthPx = slotWidthPx * SINGLE_LINE_COMFORT_RATIO;
+  const oneLineWidth = estimateTopCaptionWidthPx(
+    normalized,
+    params.fontSize,
+    params.fontFamily ?? null
+  );
+  const oneLineComfortable = oneLineWidth <= slotComfortWidthPx;
+
+  const logDecision = (
+    decision: "one_line" | "two_lines",
+    trigger:
+      | "comfort_check_passed"
+      | "max_lines_lt_2"
+      | "midpoint_split_fit"
+      | "greedy_fallback"
+      | "fallback_one_line"
+  ) => {
+    if (!debugEnabled) return;
+    console.log("[caption-wrap-debug]", {
+      caption: normalized,
+      measuredOneLineWidth: Math.round(oneLineWidth * 100) / 100,
+      slotWidth: Math.round(slotWidthPx * 100) / 100,
+      comfortWidth: Math.round(slotComfortWidthPx * 100) / 100,
+      comfortCheckPassed: oneLineComfortable,
+      decision,
+      trigger,
+    });
+  };
+
+  if (oneLineComfortable) {
+    logDecision("one_line", "comfort_check_passed");
+    return [normalized];
+  }
+
+  if (params.maxLines < 2) {
+    logDecision("one_line", "max_lines_lt_2");
+    return [normalized];
+  }
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (words.length < 2) {
+    return wrapCaptionWithSoftEarlySplit(normalized, params.maxChars, params.maxLines);
+  }
+
+  const midpoint = Math.floor(words.length / 2);
+  const splitCandidates: number[] = [];
+  for (let offset = 0; offset < words.length; offset++) {
+    const leftIndex = midpoint - offset;
+    const rightIndex = midpoint + offset;
+    if (leftIndex > 0) splitCandidates.push(leftIndex);
+    if (rightIndex > 0 && rightIndex < words.length && rightIndex !== leftIndex) {
+      splitCandidates.push(rightIndex);
+    }
+  }
+  for (const splitIndex of splitCandidates) {
+    const left = words.slice(0, splitIndex).join(" ");
+    const right = words.slice(splitIndex).join(" ");
+    const leftWidth = estimateTopCaptionWidthPx(
+      left,
+      params.fontSize,
+      params.fontFamily ?? null
+    );
+    const rightWidth = estimateTopCaptionWidthPx(
+      right,
+      params.fontSize,
+      params.fontFamily ?? null
+    );
+    if (leftWidth <= slotWidthPx && rightWidth <= slotWidthPx) {
+      logDecision("two_lines", "midpoint_split_fit");
+      return [left, right];
+    }
+  }
+
+  // Safety fallback: width-constrained greedy wrap (still word-boundary first).
+  const greedy = wrapTextGreedyPixel(
+    normalized,
+    slotWidthPx,
+    Math.max(2, params.maxLines),
+    (value) =>
+      estimateTopCaptionWidthPx(value, params.fontSize, params.fontFamily ?? null)
+  );
+  if (greedy.length >= 2) {
+    logDecision("two_lines", "greedy_fallback");
+    return [greedy[0] ?? "", greedy[1] ?? ""].filter(Boolean);
+  }
+  logDecision("one_line", "fallback_one_line");
+  return [normalized];
 }
 
 /** Em dash / en dash — normalized before slideshow wrap so PNG matches TikTok-native punctuation. */

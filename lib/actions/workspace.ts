@@ -461,6 +461,86 @@ export async function unpinWorkspaceOutput(
   return { error: error?.message ?? null };
 }
 
+function parseStorageObjectFromPublicUrl(
+  value: string
+): { bucket: string; objectPath: string } | null {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  const marker = "/storage/v1/object/public/";
+  const markerIndex = trimmed.indexOf(marker);
+  if (markerIndex < 0) return null;
+  const rawPath = trimmed.slice(markerIndex + marker.length);
+  const slashIndex = rawPath.indexOf("/");
+  if (slashIndex <= 0) return null;
+  const bucket = rawPath.slice(0, slashIndex).trim();
+  const objectPath = rawPath.slice(slashIndex + 1).trim();
+  if (!bucket || !objectPath) return null;
+  return { bucket, objectPath };
+}
+
+export async function deleteWorkspaceOutput(
+  workspaceId: string,
+  outputId: string
+): Promise<{ error: string | null }> {
+  const normalizedOutputId = String(outputId ?? "").trim();
+  if (!normalizedOutputId) return { error: "Invalid output." };
+
+  const loaded = await loadAccessibleWorkspace(workspaceId);
+  if (!loaded.workspace || !loaded.admin) {
+    return { error: loaded.error ?? "Workspace not found." };
+  }
+  const { admin } = loaded as {
+    admin: ReturnType<typeof createWorkspaceAdminClient>;
+  };
+
+  const { data: workspaceJobs } = await admin
+    .schema("public")
+    .from("generation_jobs")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .limit(500);
+  const workspaceJobIds = (workspaceJobs ?? [])
+    .map((job: any) => String(job.id ?? "").trim())
+    .filter(Boolean);
+  if (workspaceJobIds.length === 0) return { error: "Output not found in this workspace." };
+
+  const { data: mappedOutput } = await admin
+    .schema("public")
+    .from("generation_job_outputs")
+    .select("generated_meme_id")
+    .eq("generated_meme_id", normalizedOutputId)
+    .in("generation_job_id", workspaceJobIds)
+    .limit(1)
+    .maybeSingle();
+  if (!mappedOutput?.generated_meme_id) {
+    return { error: "Output not found in this workspace." };
+  }
+
+  const { data: memeRow } = await admin
+    .schema("public")
+    .from("generated_memes")
+    .select("id, image_url")
+    .eq("id", normalizedOutputId)
+    .maybeSingle();
+  if (!memeRow?.id) return { error: "Output no longer exists." };
+
+  const imageUrl = String((memeRow as any).image_url ?? "").trim();
+  const storageObject = parseStorageObjectFromPublicUrl(imageUrl);
+  if (storageObject) {
+    await admin.storage
+      .from(storageObject.bucket)
+      .remove([storageObject.objectPath]);
+  }
+
+  const { error: deleteError } = await admin
+    .schema("public")
+    .from("generated_memes")
+    .delete()
+    .eq("id", normalizedOutputId);
+
+  return { error: deleteError?.message ?? null };
+}
+
 export async function startGenerationIfQueued(
   workspaceId: string
 ): Promise<{ started: boolean; error: string | null }> {
@@ -693,9 +773,10 @@ export async function sendWorkspaceMessage(
         deferred_intent: plan.intent,
         has_deferred_followup: true,
         ui_pills: [
-          { label: "More ideas", message: "Give me another one in this direction.", kind: "action" },
-          { label: "Make it funnier", message: "Keep the idea, but make it funnier.", kind: "action" },
-          { label: "Switch format", message: "Switch this into another format.", kind: "action" },
+          { label: "Image Meme", message: "Make image memes for this direction.", kind: "format" },
+          { label: "Video Meme", message: "Turn this into short square video memes.", kind: "format" },
+          { label: "Text Meme", message: "Make text-only meme versions.", kind: "format" },
+          { label: "Slideshow", message: "Turn this into a slideshow.", kind: "format" },
         ],
       } as Json,
     });

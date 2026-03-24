@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { FramedSection } from "./framed-section";
 import { HeroNav } from "./hero-nav";
 import { EngagementCard } from "./engagement-card";
-import { createClient } from "@/lib/supabase/client";
 import { createWorkspaceFromPrompt } from "@/lib/actions/workspace";
 
 const COUNT_START = 24;
@@ -61,7 +59,6 @@ function LikeCount({
 
 export function HeroSection() {
   const [navFixed, setNavFixed] = useState(false);
-  const [hasSession, setHasSession] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [promptError, setPromptError] = useState<string | null>(null);
   const [isSubmittingPrompt, setIsSubmittingPrompt] = useState(false);
@@ -69,19 +66,6 @@ export function HeroSection() {
   const [typedPlaceholder, setTypedPlaceholder] = useState("");
   const [isPromptFocused, setIsPromptFocused] = useState(false);
   const router = useRouter();
-
-  useEffect(() => {
-    const supabase = createClient();
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      setHasSession(!!session);
-    });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setHasSession(!!session);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
 
   useEffect(() => {
     const isInteracting = isPromptFocused || prompt.trim().length > 0;
@@ -260,87 +244,74 @@ export function HeroSection() {
                 </div>
               </div>
             </div> */}
-            {hasSession ? (
-              <div className="mx-auto mt-8 flex flex-col items-center gap-3">
-                <Link
-                  href="/workspace"
-                  className="cta-funky shrink-0 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium !text-white shadow-sm hover:bg-stone-800 transition-colors font-display"
-                >
-                  Workspace
-                </Link>
-              </div>
-            ) : (
-              <>
-                <form
-                  onSubmit={async (event) => {
-                    event.preventDefault();
-                    const nextPrompt = prompt.trim();
-                    if (isSubmittingPrompt) return;
-                    if (!nextPrompt || nextPrompt.length < 8) {
-                      setPromptError("Please enter a longer prompt so we can generate better results.");
-                      return;
-                    }
-                    setPromptError(null);
-                    setIsSubmittingPrompt(true);
-                    const result = await createWorkspaceFromPrompt(nextPrompt);
-                    setIsSubmittingPrompt(false);
-                    if (result.error || !result.workspaceId) {
-                      setPromptError(result.error ?? "Failed to start workspace.");
-                      return;
-                    }
-                    router.push(`/workspace/${result.workspaceId}`);
-                  }}
-                  className="mx-auto mt-10 w-full max-w-4xl"
-                >
-                  <div className="relative overflow-hidden rounded-[30px] border border-stone-200/90 bg-gradient-to-b from-white to-stone-50 p-3 shadow-[0_18px_55px_rgba(20,24,40,0.14)] ring-1 ring-white/80">
-                    <div className="relative rounded-[24px] border border-stone-200/80 bg-white/95 p-5 sm:p-6">
-                      <label htmlFor="hero-prompt" className="sr-only">
-                        Describe what you want to generate
-                      </label>
-                      <textarea
-                        id="hero-prompt"
-                        value={prompt}
-                        onChange={(event) => {
-                          setPrompt(event.target.value);
-                          if (promptError) setPromptError(null);
-                        }}
-                        onFocus={() => setIsPromptFocused(true)}
-                        onBlur={() => setIsPromptFocused(false)}
-                        rows={3}
-                        placeholder=""
-                        className="w-full resize-none border-none bg-transparent text-left text-lg leading-relaxed text-stone-900 placeholder:text-stone-500 focus:outline-none"
-                      />
-                      {!prompt.trim() ? (
-                        <span
-                          className="pointer-events-none absolute left-5 right-5 top-5 text-left text-base leading-relaxed text-stone-500 sm:text-lg"
-                        >
-                          {typedPlaceholder}
-                        </span>
-                      ) : null}
+            <form
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const nextPrompt = prompt.trim();
+                if (isSubmittingPrompt) return;
+                if (!nextPrompt || nextPrompt.length < 8) {
+                  setPromptError("Please enter a longer prompt so we can generate better results.");
+                  return;
+                }
+                setPromptError(null);
+                setIsSubmittingPrompt(true);
+                const result = await createWorkspaceFromPrompt(nextPrompt);
+                setIsSubmittingPrompt(false);
+                if (result.error || !result.workspaceId) {
+                  setPromptError(result.error ?? "Failed to start workspace.");
+                  return;
+                }
+                router.push(`/workspace/${result.workspaceId}`);
+              }}
+              className="mx-auto mt-10 w-full max-w-4xl"
+            >
+              <div className="relative overflow-hidden rounded-[30px] border border-stone-200/90 bg-gradient-to-b from-white to-stone-50 p-3 shadow-[0_18px_55px_rgba(20,24,40,0.14)] ring-1 ring-white/80">
+                <div className="relative rounded-[24px] border border-stone-200/80 bg-white/95 p-5 sm:p-6">
+                  <label htmlFor="hero-prompt" className="sr-only">
+                    Describe what you want to generate
+                  </label>
+                  <textarea
+                    id="hero-prompt"
+                    value={prompt}
+                    onChange={(event) => {
+                      setPrompt(event.target.value);
+                      if (promptError) setPromptError(null);
+                    }}
+                    onFocus={() => setIsPromptFocused(true)}
+                    onBlur={() => setIsPromptFocused(false)}
+                    rows={3}
+                    placeholder=""
+                    className="w-full resize-none border-none bg-transparent text-left text-lg leading-relaxed text-stone-900 placeholder:text-stone-500 focus:outline-none"
+                  />
+                  {!prompt.trim() ? (
+                    <span
+                      className="pointer-events-none absolute left-5 right-5 top-5 text-left text-base leading-relaxed text-stone-500 sm:text-lg"
+                    >
+                      {typedPlaceholder}
+                    </span>
+                  ) : null}
 
-                      <div className="mt-4 flex items-center justify-end gap-3">
-                        <button
-                          type="submit"
-                          disabled={isSubmittingPrompt}
-                          aria-label={isSubmittingPrompt ? "Starting workspace" : "Start workspace"}
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-stone-900 text-lg font-semibold text-white shadow-sm transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isSubmittingPrompt ? "…" : "↑"}
-                        </button>
-                      </div>
-                    </div>
+                  <div className="mt-4 flex items-center justify-end gap-3">
+                    <button
+                      type="submit"
+                      disabled={isSubmittingPrompt}
+                      aria-label={isSubmittingPrompt ? "Starting workspace" : "Start workspace"}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-stone-900 text-lg font-semibold text-white shadow-sm transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isSubmittingPrompt ? "…" : "↑"}
+                    </button>
                   </div>
-                </form>
-                {isSubmittingPrompt ? (
-                  <p className="mt-3 text-center text-sm text-stone-500">
-                    Creating your workspace...
-                  </p>
-                ) : null}
-                {promptError ? (
-                  <p className="mt-2 text-center text-sm text-rose-600">{promptError}</p>
-                ) : null}
-              </>
-            )}
+                </div>
+              </div>
+            </form>
+            {isSubmittingPrompt ? (
+              <p className="mt-3 text-center text-sm text-stone-500">
+                Creating your workspace...
+              </p>
+            ) : null}
+            {promptError ? (
+              <p className="mt-2 text-center text-sm text-rose-600">{promptError}</p>
+            ) : null}
           </div>
 
           <div className="mt-6 flex shrink-0 justify-center sm:mt-8">

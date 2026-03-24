@@ -1,9 +1,11 @@
 import sharp from "sharp";
-import { wrapCaptionWithSoftEarlySplit } from "@/renderer/caption-wrap";
+import { wrapCaptionWithSoftEarlySplit, wrapSquareTopCaptionScoped } from "@/renderer/caption-wrap";
 
 export type MemeTemplateForRender = {
   canvas_width: number;
   canvas_height: number;
+  template_family?: string | null;
+  text_layout_type?: string | null;
   font_size?: number | null;
   alignment?: string | null;
   text_color?: string | null;
@@ -172,8 +174,20 @@ function buildSVG(template: MemeTemplateForRender, slotTexts: SlotTexts) {
   );
 
   const renderedText = slots
-    .map((slot) => {
-      const lines = wrapCaptionWithSoftEarlySplit(slot.text, slot.maxChars, slot.maxLines);
+    .map((slot, slotIndex) => {
+      const lines =
+        slotIndex === 0
+          ? wrapSquareTopCaptionScoped({
+              text: slot.text,
+              maxChars: slot.maxChars,
+              maxLines: slot.maxLines,
+              slotWidthPx: slot.width ?? 0,
+              fontSize: fontSize,
+              fontFamily: template.font ?? null,
+              templateFamily: template.template_family ?? null,
+              textLayoutType: template.text_layout_type ?? null,
+            })
+          : wrapCaptionWithSoftEarlySplit(slot.text, slot.maxChars, slot.maxLines);
       return renderLines(lines, slot as any, {
         ...style,
         // Keep existing single-line alignment; force left only after text is truly multi-line.

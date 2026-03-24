@@ -57,6 +57,7 @@ export function OutputPanel({
   pinnedCount,
   gateState,
   onTogglePin,
+  onDeleteOutput,
   onPlanUnlocked,
 }: {
   latestJob: WorkspaceJob | null;
@@ -65,6 +66,7 @@ export function OutputPanel({
   pinnedCount: number;
   gateState: "anonymous_blocked" | "authenticated_plan_required" | "unlocked";
   onTogglePin?: (outputId: string, shouldPin: boolean) => void | Promise<void>;
+  onDeleteOutput?: (outputId: string) => void | Promise<void>;
   onPlanUnlocked?: () => void | Promise<void>;
 }) {
   const [notice, setNotice] = useState<string | null>(null);
@@ -331,6 +333,36 @@ export function OutputPanel({
                       }`}
                       aria-hidden="true"
                     />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!onDeleteOutput) return;
+                      const confirmed = window.confirm(
+                        "Delete this result from your workspace?"
+                      );
+                      if (!confirmed) return;
+                      await onDeleteOutput(output.id);
+                    }}
+                    aria-label="Delete output"
+                    title="Delete output"
+                    className="rounded-full border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-medium text-rose-700 transition hover:bg-rose-50"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                    </svg>
                   </button>
                 </div>
               </div>

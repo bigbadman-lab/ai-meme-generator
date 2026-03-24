@@ -93,35 +93,10 @@ function completionFollowupMessage(
 }
 
 function completionUiPills(outputFormat: JobRow["output_format"]) {
-  const base = [
-    { label: "More ideas", message: "Give me another one in this direction.", kind: "action" as const },
-    { label: "Make it funnier", message: "Keep the idea, but make it funnier.", kind: "action" as const },
-    { label: "More niche", message: "Make this more niche for my target audience.", kind: "action" as const },
-  ];
-  if (outputFormat === "vertical_slideshow") {
-    return [
-      ...base.slice(0, 2),
-      { label: "Image Meme", message: "Turn this into image memes.", kind: "format" as const },
-      { label: "Text Meme", message: "Make text-only meme versions.", kind: "format" as const },
-    ];
-  }
-  if (outputFormat === "square_video") {
-    return [
-      ...base.slice(0, 2),
-      { label: "Slideshow", message: "Turn this into a slideshow.", kind: "format" as const },
-      { label: "Text Meme", message: "Make text-only meme versions.", kind: "format" as const },
-    ];
-  }
-  if (outputFormat === "square_text") {
-    return [
-      ...base.slice(0, 2),
-      { label: "Image Meme", message: "Turn this into image memes.", kind: "format" as const },
-      { label: "Video Meme", message: "Turn this into short square video memes.", kind: "format" as const },
-    ];
-  }
   return [
-    ...base.slice(0, 2),
+    { label: "Image Meme", message: "Make image memes for this direction.", kind: "format" as const },
     { label: "Video Meme", message: "Turn this into short square video memes.", kind: "format" as const },
+    { label: "Text Meme", message: "Make text-only meme versions.", kind: "format" as const },
     { label: "Slideshow", message: "Turn this into a slideshow.", kind: "format" as const },
   ];
 }

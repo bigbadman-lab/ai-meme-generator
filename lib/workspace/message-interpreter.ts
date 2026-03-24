@@ -42,7 +42,7 @@ export type WorkspaceIntentPlan = {
   };
   suggested_formats?: MemeOutputFormat[];
   suggested_actions?: Array<
-    "more_ideas" | "make_funnier" | "more_niche" | "switch_format"
+    "more_ideas" | "more_niche" | "switch_format"
   >;
   ui_pills?: Array<{
     label: string;
@@ -269,23 +269,6 @@ function formatPills(
   }));
 }
 
-function actionPills(
-  items: Array<"more_ideas" | "make_funnier" | "more_niche" | "switch_format">
-): Array<{ label: string; message: string; kind: "action" }> {
-  return items.map((item) => {
-    if (item === "more_ideas") {
-      return { label: "More ideas", message: "Give me another one in this direction.", kind: "action" };
-    }
-    if (item === "make_funnier") {
-      return { label: "Make it funnier", message: "Keep the idea, but make it funnier.", kind: "action" };
-    }
-    if (item === "more_niche") {
-      return { label: "More niche", message: "Make this more niche for my target audience.", kind: "action" };
-    }
-    return { label: "Switch format", message: "Switch this into another format.", kind: "action" };
-  });
-}
-
 function isMoreIdeasMessage(text: string): boolean {
   const l = lower(text);
   return hasAny(l, [
@@ -341,11 +324,8 @@ export function interpretWorkspaceMessage(
       suggested_formats: [outputFormat, "square_video", "square_text", "vertical_slideshow"].filter(
         (v, i, arr): v is MemeOutputFormat => arr.indexOf(v) === i
       ),
-      suggested_actions: ["make_funnier", "more_niche", "switch_format"],
-      ui_pills: [
-        ...actionPills(["make_funnier", "more_niche", "switch_format"]),
-        ...formatPills(outputFormat).slice(0, 1),
-      ],
+      suggested_actions: ["more_ideas", "switch_format"],
+      ui_pills: formatPills(outputFormat),
     };
   }
 
@@ -368,7 +348,7 @@ export function interpretWorkspaceMessage(
         "vertical_slideshow",
       ],
       suggested_actions: ["more_ideas", "switch_format"],
-      ui_pills: [...formatPills("square_image"), ...actionPills(["more_ideas"])].slice(0, 4),
+      ui_pills: formatPills("square_image"),
     };
   }
 
@@ -432,8 +412,8 @@ export function interpretWorkspaceMessage(
       suggested_formats: [outputFormat, "square_video", "square_text", "vertical_slideshow"].filter(
         (v, i, arr): v is MemeOutputFormat => arr.indexOf(v) === i
       ),
-      suggested_actions: ["more_ideas", "make_funnier", "switch_format"],
-      ui_pills: actionPills(["more_ideas", "make_funnier", "switch_format"]),
+      suggested_actions: ["more_ideas", "switch_format"],
+      ui_pills: formatPills(outputFormat),
     };
   }
 
@@ -500,11 +480,8 @@ export function interpretWorkspaceMessage(
       suggested_formats: [outputFormat, "square_video", "square_text", "vertical_slideshow"].filter(
         (v, i, arr): v is MemeOutputFormat => arr.indexOf(v) === i
       ),
-      suggested_actions: ["more_ideas", "make_funnier", "switch_format"],
-      ui_pills: [
-        ...actionPills(["more_ideas", "make_funnier", "switch_format"]),
-        ...formatPills(outputFormat).slice(0, 1),
-      ],
+      suggested_actions: ["more_ideas", "switch_format"],
+      ui_pills: formatPills(outputFormat),
     };
   }
 
