@@ -184,6 +184,18 @@ export function wrapSquareTopCaptionScoped(params: {
     params.fontFamily ?? null
   );
   const oneLineFits = oneLineWidth <= slotWidthPx;
+  const words = normalized.split(/\s+/).filter(Boolean);
+
+  // Safe, narrow tweak: for roomy slot-1 captions that are long enough to read cramped
+  // on one line, prefer a clean 2-line split if both lines still fit by measured width.
+  const shouldPreferTwoLineInRoomySlot =
+    oneLineFits &&
+    params.maxLines >= 2 &&
+    slotWidthPx >= 420 &&
+    params.maxChars >= 20 &&
+    words.length >= 8 &&
+    normalized.length >= 42 &&
+    oneLineWidth / slotWidthPx >= 0.72;
 
   const logDecision = (
     decision: "one_line" | "two_lines",
@@ -206,6 +218,55 @@ export function wrapSquareTopCaptionScoped(params: {
   };
 
   if (oneLineFits) {
+    if (shouldPreferTwoLineInRoomySlot) {
+      const midpoint = Math.floor(words.length / 2);
+      const splitCandidates: number[] = [];
+      for (let offset = 0; offset < words.length; offset++) {
+        const leftIndex = midpoint - offset;
+        const rightIndex = midpoint + offset;
+        if (leftIndex > 0) splitCandidates.push(leftIndex);
+        if (
+          rightIndex > 0 &&
+          rightIndex < words.length &&
+          rightIndex !== leftIndex
+        ) {
+          splitCandidates.push(rightIndex);
+        }
+      }
+
+      let bestLaterSplit:
+        | { left: string; right: string; splitIndex: number }
+        | null = null;
+      for (const splitIndex of splitCandidates) {
+        const left = words.slice(0, splitIndex).join(" ");
+        const right = words.slice(splitIndex).join(" ");
+        const leftWords = left.split(/\s+/).filter(Boolean);
+        const rightWords = right.split(/\s+/).filter(Boolean);
+        if (leftWords.length < 2 || rightWords.length < 2) continue;
+
+        const leftWidth = estimateTopCaptionWidthPx(
+          left,
+          params.fontSize,
+          params.fontFamily ?? null
+        );
+        const rightWidth = estimateTopCaptionWidthPx(
+          right,
+          params.fontSize,
+          params.fontFamily ?? null
+        );
+        if (leftWidth <= slotWidthPx && rightWidth <= slotWidthPx) {
+          if (!bestLaterSplit || splitIndex > bestLaterSplit.splitIndex) {
+            bestLaterSplit = { left, right, splitIndex };
+          }
+        }
+      }
+
+      if (bestLaterSplit) {
+        logDecision("two_lines", "midpoint_split_fit");
+        return [bestLaterSplit.left, bestLaterSplit.right];
+      }
+    }
+
     logDecision("one_line", "comfort_check_passed");
     return [normalized];
   }
@@ -215,7 +276,6 @@ export function wrapSquareTopCaptionScoped(params: {
     return [normalized];
   }
 
-  const words = normalized.split(/\s+/).filter(Boolean);
   if (words.length < 2) {
     return wrapCaptionWithSoftEarlySplit(normalized, params.maxChars, params.maxLines);
   }

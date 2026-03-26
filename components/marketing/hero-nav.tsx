@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState, useCallback } from "react";
 import { Menu, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
@@ -20,16 +20,18 @@ interface HeroNavProps {
 
 export function HeroNav({ onFixedChange }: HeroNavProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [isFixed, setIsFixed] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+  const [showLoggedOutMessage, setShowLoggedOutMessage] = useState(false);
 
   async function handleLogOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
     closeMenu();
-    router.push("/");
+    router.push("/?logged_out=1");
     router.refresh();
   }
 
@@ -50,6 +52,15 @@ export function HeroNav({ onFixedChange }: HeroNavProps) {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("logged_out") !== "1") return;
+    setShowLoggedOutMessage(true);
+    const timer = window.setTimeout(() => {
+      setShowLoggedOutMessage(false);
+    }, 3200);
+    return () => window.clearTimeout(timer);
+  }, [searchParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -270,6 +281,13 @@ export function HeroNav({ onFixedChange }: HeroNavProps) {
           </div>
         </>
       )}
+      {showLoggedOutMessage ? (
+        <div className="pointer-events-none mt-2 flex justify-center">
+          <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 shadow-sm">
+            Logged out successfully.
+          </div>
+        </div>
+      ) : null}
     </header>
   );
 }

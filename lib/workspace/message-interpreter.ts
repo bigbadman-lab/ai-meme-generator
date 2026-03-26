@@ -66,6 +66,7 @@ export type WorkspaceInterpreterContext = {
     business_summary: string | null;
     preview_generations_used: number;
   };
+  resetContext?: boolean;
 };
 
 function lower(text: string): string {
@@ -195,6 +196,118 @@ function isRefineExisting(text: string, hasReference: boolean): boolean {
     hasAny(l, ["more", "less", "tone", "angle", "for mums", "for moms"]) &&
     !hasAny(l, ["what should", "why is", "which format"])
   );
+}
+
+const TOPIC_SHIFT_PHRASES = [
+  "switch to",
+  "instead of",
+  "new topic",
+  "different topic",
+  "another topic",
+  "different niche",
+  "new niche",
+  "different business",
+  "another business",
+  "not plumbing",
+  "not roofing",
+] as const;
+
+const DOMAIN_HINT_TERMS = [
+  "plumbing",
+  "plumber",
+  "roofing",
+  "roofer",
+  "hvac",
+  "electrician",
+  "electrical",
+  "landscaping",
+  "landscaper",
+  "dentist",
+  "dental",
+  "restaurant",
+  "cafe",
+  "bakery",
+  "salon",
+  "barber",
+  "gym",
+  "fitness",
+  "real estate",
+  "realtor",
+  "contractor",
+  "construction",
+] as const;
+
+function toTopicTokenSet(text: string): Set<string> {
+  const stop = new Set([
+    "the",
+    "and",
+    "for",
+    "with",
+    "that",
+    "this",
+    "from",
+    "your",
+    "you",
+    "our",
+    "about",
+    "into",
+    "make",
+    "create",
+    "generate",
+    "meme",
+    "memes",
+    "video",
+    "text",
+    "post",
+    "posts",
+    "content",
+    "ideas",
+    "brand",
+    "business",
+    "audience",
+  ]);
+  const tokens = lower(text)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 4 && !stop.has(t));
+  return new Set(tokens);
+}
+
+function hasDomainHint(text: string): boolean {
+  const l = lower(text);
+  return DOMAIN_HINT_TERMS.some((term) => l.includes(term));
+}
+
+function detectTopicShift(
+  userMessage: string,
+  ctx: WorkspaceInterpreterContext
+): boolean {
+  if (!ctx.latestJob && !ctx.hasLatestCompletedOutputs) return false;
+  const l = lower(userMessage);
+  if (TOPIC_SHIFT_PHRASES.some((phrase) => l.includes(phrase))) return true;
+
+  const anchor = [
+    ctx.latestJob?.prompt ?? "",
+    ctx.workspace.business_summary ?? "",
+    ctx.workspace.initial_prompt ?? "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  if (!anchor.trim()) return false;
+
+  const userTokens = toTopicTokenSet(userMessage);
+  const anchorTokens = toTopicTokenSet(anchor);
+  if (userTokens.size < 3 || anchorTokens.size < 3) return false;
+
+  let overlapCount = 0;
+  for (const token of userTokens) {
+    if (anchorTokens.has(token)) overlapCount += 1;
+  }
+  const overlapRatio = overlapCount / userTokens.size;
+
+  // Conservative shift detection: explicit new-domain hint + low lexical overlap.
+  return hasDomainHint(userMessage) && overlapRatio <= 0.15;
 }
 
 function isGenerate(text: string): boolean {
@@ -333,7 +446,15 @@ export function interpretWorkspaceMessage(
   const userMessage = ctx.userMessage.trim();
   const variantCount = parseVariantCount(userMessage);
   const recentContext = extractRecentContextSnippets(ctx.recentMessages, userMessage);
+  const resetContext = Boolean(ctx.resetContext);
+  const topicShiftDetected = detectTopicShift(userMessage, ctx);
+  const scopedRecentContext = resetContext
+    ? []
+    : topicShiftDetected
+      ? recentContext.slice(-1)
+    : recentContext;
   const hasReference = Boolean(ctx.latestJob || ctx.hasLatestCompletedOutputs);
+  const hasReferenceForAnchoring = hasReference && !resetContext;
   const engagementRequested = detectEngagementPostOverride(userMessage);
   const overrideFormat = engagementRequested
     ? ("square_text" as const)
@@ -346,7 +467,7 @@ export function interpretWorkspaceMessage(
       : ctx.latestJob?.template_family_preference ?? null;
   const promoDetection = detectExplicitPromoIntent(userMessage);
 
-  if (isMoreIdeasMessage(userMessage) && hasReference) {
+  if (isMoreIdeasMessage(userMessage) && hasReferenceForAnchoring) {
     const outputFormat =
       preferredFormat ??
       resolveWorkspaceOutputFormat({
@@ -357,8 +478,8 @@ export function interpretWorkspaceMessage(
     const resolvedPrompt = [
       `Generate another batch in the same direction.`,
       `Base direction: ${basePrompt}`,
-      recentContext.length > 0
-        ? `Recent context updates: ${recentContext.join(" | ")}`
+      scopedRecentContext.length > 0
+        ? `Recent context updates: ${scopedRecentContext.join(" | ")}`
         : null,
       `User follow-up request: ${userMessage}`,
     ]
@@ -443,7 +564,11 @@ export function interpretWorkspaceMessage(
     };
   }
 
-  if (isRefineExisting(userMessage, hasReference)) {
+  if (
+    isRefineExisting(userMessage, hasReferenceForAnchoring) &&
+    !topicShiftDetected &&
+    !resetContext
+  ) {
     const outputFormat =
       overrideFormat ??
       ctx.latestJob?.output_format ??
@@ -455,8 +580,8 @@ export function interpretWorkspaceMessage(
     const resolvedPrompt = [
       `Refine the previous direction.`,
       `Base direction: ${basePrompt}`,
-      recentContext.length > 0
-        ? `Recent context updates: ${recentContext.join(" | ")}`
+      scopedRecentContext.length > 0
+        ? `Recent context updates: ${scopedRecentContext.join(" | ")}`
         : null,
       `User refinement request: ${userMessage}`,
     ]
@@ -524,10 +649,10 @@ export function interpretWorkspaceMessage(
       });
     const resolvedPrompt = [
       `Primary request: ${userMessage}`,
-      recentContext.length > 0
-        ? `Recent context updates: ${recentContext.join(" | ")}`
+      scopedRecentContext.length > 0
+        ? `Recent context updates: ${scopedRecentContext.join(" | ")}`
         : null,
-      ctx.workspace.business_summary
+      !topicShiftDetected && !resetContext && ctx.workspace.business_summary
         ? `Workspace summary: ${ctx.workspace.business_summary}`
         : null,
     ]
@@ -538,20 +663,41 @@ export function interpretWorkspaceMessage(
       intent: "generate",
       should_generate: true,
       assistant_response:
-        outputFormat === "square_image"
-          ? "Strong brief. Generating an image meme."
-          : outputFormat === "square_video"
-            ? "Generating a square video meme."
-            : outputFormat === "square_text"
-              ? templateFamilyPreference === "engagement_text"
-                ? "Generating an engagement post."
-                : "Generating a text meme."
-              : "Generating a slideshow.",
+        resetContext
+          ? outputFormat === "square_image"
+            ? "Fresh context noted. Generating from this new prompt."
+            : outputFormat === "square_video"
+              ? "Fresh context noted. Generating a square video from this new prompt."
+              : outputFormat === "square_text"
+                ? templateFamilyPreference === "engagement_text"
+                  ? "Fresh context noted. Generating an engagement post from this new prompt."
+                  : "Fresh context noted. Generating a text meme from this new prompt."
+                : "Fresh context noted. Generating a slideshow from this new prompt."
+          : topicShiftDetected
+          ? outputFormat === "square_image"
+            ? "Topic shift noted. Generating for the new topic."
+            : outputFormat === "square_video"
+              ? "Topic shift noted. Generating a square video for the new topic."
+              : outputFormat === "square_text"
+                ? templateFamilyPreference === "engagement_text"
+                  ? "Topic shift noted. Generating an engagement post for the new topic."
+                  : "Topic shift noted. Generating a text meme for the new topic."
+                : "Topic shift noted. Generating a slideshow for the new topic."
+          : outputFormat === "square_image"
+            ? "Strong brief. Generating an image meme."
+            : outputFormat === "square_video"
+              ? "Generating a square video meme."
+              : outputFormat === "square_text"
+                ? templateFamilyPreference === "engagement_text"
+                  ? "Generating an engagement post."
+                  : "Generating a text meme."
+                : "Generating a slideshow.",
       prompt_for_generation: resolvedPrompt,
       output_format: outputFormat,
       template_family_preference: templateFamilyPreference,
       variant_count: variantCount,
-      relation_to_previous_job: hasReference ? "follow_up" : "none",
+      relation_to_previous_job:
+        resetContext || topicShiftDetected ? "none" : hasReference ? "follow_up" : "none",
       clarification_question: null,
       confidence: "medium",
       explicit_promo_intent: promoDetection.explicitPromoIntent,

@@ -36,7 +36,7 @@ export function DashboardShell({
   async function handleLogOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/");
+    router.push("/?logged_out=1");
     router.refresh();
   }
 

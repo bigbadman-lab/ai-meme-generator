@@ -22,8 +22,18 @@ import {
   hasActiveEntitlementForPlan,
   type WorkspacePlanCode,
 } from "@/lib/workspace/entitlements";
+import { getOrCreateDefaultWorkspaceForUser } from "@/lib/workspace/default-workspace";
 
 type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
+type HomepageSubmitOptions = {
+  preferredOutputFormat?:
+    | "square_image"
+    | "square_video"
+    | "vertical_slideshow"
+    | "square_text";
+  templateFamilyPreference?: "engagement_text" | null;
+  resetContext?: boolean;
+};
 
 export type WorkspaceMessage = {
   id: string;
@@ -112,14 +122,7 @@ async function loadAccessibleWorkspace(workspaceId: string) {
 
 export async function createWorkspaceFromPrompt(
   prompt: string,
-  options?: {
-    preferredOutputFormat?:
-      | "square_image"
-      | "square_video"
-      | "vertical_slideshow"
-      | "square_text";
-    templateFamilyPreference?: "engagement_text" | null;
-  }
+  options?: HomepageSubmitOptions
 ): Promise<{ workspaceId: string | null; error: string | null }> {
   const normalizedPrompt = normalizePrompt(prompt);
   if (!normalizedPrompt) return { workspaceId: null, error: "Prompt is required." };
@@ -219,6 +222,32 @@ export async function createWorkspaceFromPrompt(
   });
   if (initialQueued.jobId) {
     void runGenerationJob(initialQueued.jobId);
+  }
+
+  return { workspaceId, error: null };
+}
+
+export async function submitHomepagePrompt(
+  prompt: string,
+  options?: HomepageSubmitOptions
+): Promise<{ workspaceId: string | null; error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.id) {
+    return createWorkspaceFromPrompt(prompt, options);
+  }
+
+  const workspaceId = await getOrCreateDefaultWorkspaceForUser(user.id);
+  const sent = await sendWorkspaceMessage(workspaceId, prompt, {
+    preferredOutputFormat: options?.preferredOutputFormat,
+    templateFamilyPreference: options?.templateFamilyPreference ?? null,
+  });
+
+  if (sent.error) {
+    return { workspaceId: null, error: sent.error };
   }
 
   return { workspaceId, error: null };
@@ -585,7 +614,8 @@ export async function startGenerationIfQueued(
 
 export async function sendWorkspaceMessage(
   workspaceId: string,
-  prompt: string
+  prompt: string,
+  options?: HomepageSubmitOptions
 ): Promise<{ state: WorkspaceState | null; error: string | null }> {
   const normalizedPrompt = normalizePrompt(prompt);
   if (!normalizedPrompt) return { state: null, error: "Prompt is required." };
@@ -600,6 +630,7 @@ export async function sendWorkspaceMessage(
     admin: ReturnType<typeof createWorkspaceAdminClient>;
     currentUserId?: string | null;
   };
+  const resetContextTurn = Boolean(options?.resetContext);
 
   const { data: userMessage } = await admin
     .schema("public")
@@ -698,10 +729,16 @@ export async function sendWorkspaceMessage(
         : null,
       preview_generations_used: previewUsed,
     },
+    resetContext: resetContextTurn,
   });
 
   const resolvedPrompt = plan.prompt_for_generation?.trim() || normalizedPrompt;
+  const resolvedTemplateFamilyPreference =
+    options?.templateFamilyPreference === "engagement_text"
+      ? "engagement_text"
+      : plan.template_family_preference ?? null;
   const resolvedOutputFormat =
+    options?.preferredOutputFormat ??
     plan.output_format ??
     resolveWorkspaceOutputFormat({
       prompt: resolvedPrompt,
@@ -718,6 +755,7 @@ export async function sendWorkspaceMessage(
     variantCount: requestedVariantCount,
     relationToPreviousJob: plan.relation_to_previous_job,
     explicitPromoIntent: plan.explicit_promo_intent,
+    resetContext: resetContextTurn,
     resolvedPromptPreview: resolvedPrompt.slice(0, 220),
   });
 
@@ -755,16 +793,18 @@ export async function sendWorkspaceMessage(
     const followupPayload = {
       prompt: resolvedPrompt,
       output_format: resolvedOutputFormat,
-      template_family_preference: plan.template_family_preference ?? null,
+      template_family_preference: resolvedTemplateFamilyPreference,
+      reset_context: resetContextTurn,
       requested_variant_count: requestedVariantCount,
       relation_to_previous_job: plan.relation_to_previous_job,
       trigger_message_id: userMessage?.id ?? null,
       deferred_from_intent: plan.intent,
       explicit_promo_intent: plan.explicit_promo_intent,
       promo_context_excerpt: plan.promo_context_excerpt ?? null,
-      workspace_context_summary:
-        String(workspace.business_summary ?? workspace.initial_prompt ?? "").trim() || null,
-      based_on_job_id: latestJobRow?.id ?? null,
+      workspace_context_summary: resetContextTurn
+        ? null
+        : String(workspace.business_summary ?? workspace.initial_prompt ?? "").trim() || null,
+      based_on_job_id: resetContextTurn ? null : latestJobRow?.id ?? null,
       based_on_output_ids: [],
     } as Json;
 
@@ -1019,17 +1059,19 @@ export async function sendWorkspaceMessage(
           : "random_template",
       selected_template_id: null,
       selected_template_slug: null,
-      based_on_job_id: latestJobRow?.id ?? null,
+      based_on_job_id: resetContextTurn ? null : latestJobRow?.id ?? null,
       based_on_output_ids: [],
       deferred_followup: false,
+      reset_context: resetContextTurn,
       source: "workspace_send_message",
       intent: plan.intent,
-      template_family_preference: plan.template_family_preference ?? null,
+      template_family_preference: resolvedTemplateFamilyPreference,
       relation_to_previous_job: plan.relation_to_previous_job,
       explicit_promo_intent: plan.explicit_promo_intent,
       promo_context_excerpt: plan.promo_context_excerpt ?? null,
-      workspace_context_summary:
-        String(workspace.business_summary ?? workspace.initial_prompt ?? "").trim() || null,
+      workspace_context_summary: resetContextTurn
+        ? null
+        : String(workspace.business_summary ?? workspace.initial_prompt ?? "").trim() || null,
     } as Json,
   });
   const queued = await enqueueGenerationJob({

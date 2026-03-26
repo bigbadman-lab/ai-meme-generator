@@ -27,6 +27,7 @@ export function WorkspaceShell({
 }) {
   const [state, setState] = useState<WorkspaceState>(initialState);
   const [error, setError] = useState<string | null>(null);
+  const [startFreshNext, setStartFreshNext] = useState(false);
   const bootedQueuedStart = useRef(false);
 
   const latestJob = state.latestJob;
@@ -101,14 +102,18 @@ export function WorkspaceShell({
             : "border-stone-200 bg-stone-100 text-stone-600";
   const pinnedCount = state.outputs.filter((output) => output.is_pinned).length;
 
-  const submitMessage = async (prompt: string) => {
+  const submitMessage = async (prompt: string, resetContext = false) => {
     setError(null);
-    const result = await sendWorkspaceMessage(workspaceId, prompt);
+    const result = await sendWorkspaceMessage(workspaceId, prompt, {
+      resetContext,
+    });
     if (result.error || !result.state) {
       setError(result.error ?? "Failed to send message.");
+      if (resetContext) setStartFreshNext(false);
       return;
     }
     setState(result.state);
+    if (resetContext) setStartFreshNext(false);
   };
 
   return (
@@ -132,6 +137,15 @@ export function WorkspaceShell({
           </Link>
           <span className={`rounded-full border px-2.5 py-1 text-[10px] font-medium sm:text-[11px] ${planChipClass}`}>
             {planLabel}
+          </span>
+          <span
+            className={`hidden sm:inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold sm:text-[11px] ${
+              startFreshNext
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-stone-200 bg-white/60 text-stone-600"
+            }`}
+          >
+            {startFreshNext ? "✓ Start fresh: ignores earlier thread context" : "↺ Start fresh: ignores earlier thread context"}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -161,9 +175,41 @@ export function WorkspaceShell({
               aria-hidden="true"
             />
           </div>
-          <span className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-wide ${statusClass}`}>
-            {displayStatusLabel.replace("_", " ")}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-wide ${statusClass}`}
+            >
+              {displayStatusLabel.replace("_", " ")}
+            </span>
+            <div>
+              <button
+                type="button"
+                disabled={isAuthLocked || isPlanLocked}
+                onClick={() => setStartFreshNext((v) => !v)}
+                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60 ${
+                  startFreshNext
+                    ? "border-emerald-500 bg-emerald-500 text-white shadow-sm"
+                    : "border-stone-300 bg-white text-stone-600 hover:bg-stone-50"
+                }`}
+                aria-pressed={startFreshNext}
+                aria-label={
+                  startFreshNext
+                    ? "Start fresh enabled for next prompt"
+                    : "Start fresh for next prompt"
+                }
+              >
+                {startFreshNext ? (
+                  <span aria-hidden="true" className="leading-none text-[12px]">
+                    ✓
+                  </span>
+                ) : (
+                  <span aria-hidden="true" className="leading-none text-[13px]">
+                    ↺
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
         <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
           {/* min-h-0 (not a fixed min-height) so this region can shrink when the processing row is visible; otherwise the help block is clipped in a fixed-height aside. */}
@@ -206,7 +252,7 @@ export function WorkspaceShell({
                     ? "Choose a plan to continue this thread"
                     : "What should we create next?"
               }
-              onSubmit={submitMessage}
+              onSubmit={(prompt) => submitMessage(prompt, startFreshNext)}
             />
             {error ? <p className="mt-2 text-xs text-rose-600">{error}</p> : null}
           </div>

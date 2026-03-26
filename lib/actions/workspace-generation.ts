@@ -25,6 +25,7 @@ type FollowupPayload = {
   promo_context_excerpt?: unknown;
   template_family_preference?: unknown;
   workspace_context_summary?: unknown;
+  reset_context?: unknown;
 };
 
 type JobRow = {
@@ -198,16 +199,18 @@ export async function runGenerationPlan(params: {
       ? (job.metadata as Record<string, unknown>)
       : {};
   const explicitPromoIntent = Boolean(metadata.explicit_promo_intent);
+  const resetContext = Boolean(metadata.reset_context);
   const explicitPromoContext = explicitPromoIntent
     ? String(metadata.promo_context_excerpt ?? "").trim() || null
     : null;
-  const workspaceContextSummary =
-    String(
-      metadata.workspace_context_summary ??
-        workspace.business_summary ??
-        workspace.initial_prompt ??
-        ""
-    ).trim() || null;
+  const workspaceContextSummary = resetContext
+    ? null
+    : String(
+        metadata.workspace_context_summary ??
+          workspace.business_summary ??
+          workspace.initial_prompt ??
+          ""
+      ).trim() || null;
   const templateFamilyPreference =
     metadata.template_family_preference === "engagement_text"
       ? "engagement_text"
@@ -216,6 +219,7 @@ export async function runGenerationPlan(params: {
   console.log("[workspace-gen] runGenerationPlan payload", {
     outputFormat: job.output_format ?? "square_text",
     templateFamilyPreference,
+    resetContext,
     requestedVariantCount: job.requested_variant_count || 1,
     workspaceId: workspace.id,
     jobId: job.id,
@@ -236,7 +240,11 @@ export async function runGenerationPlan(params: {
       profileOverride: {
         id: workspace.user_id ?? workspace.id,
         brand_name: "Mimly Workspace",
-        what_you_do: workspace.business_summary ?? workspace.initial_prompt,
+        what_you_do: resetContext
+          ? (String(job.prompt ?? "").trim() ||
+              workspace.business_summary ||
+              workspace.initial_prompt)
+          : workspace.business_summary ?? workspace.initial_prompt,
         audience: "social media audience",
         country: null,
         english_variant: "en-GB",
@@ -559,6 +567,7 @@ export async function runGenerationJob(
         payload.template_family_preference === "engagement_text"
           ? ("engagement_text" as const)
           : null;
+      const resetContext = Boolean(payload.reset_context);
 
       await admin
         .schema("public")
@@ -611,15 +620,16 @@ export async function runGenerationJob(
                   ? "square_text_open_variant"
                   : "random_template",
               template_family_preference: templateFamilyPreference,
+              reset_context: resetContext,
               selected_template_id: null,
               selected_template_slug: null,
-              based_on_job_id: basedOnJobId,
+              based_on_job_id: resetContext ? null : basedOnJobId,
               based_on_output_ids: basedOnOutputIds,
               deferred_followup: true,
               deferred_from_intent: deferredFromIntent,
               explicit_promo_intent: explicitPromoIntent,
               promo_context_excerpt: promoContextExcerpt,
-              workspace_context_summary: workspaceContextSummary,
+              workspace_context_summary: resetContext ? null : workspaceContextSummary,
             } as Json,
           });
           const queuedFollowup = await enqueueGenerationJob({

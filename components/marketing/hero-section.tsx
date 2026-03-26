@@ -6,15 +6,15 @@ import { cn } from "@/lib/utils";
 import { FramedSection } from "./framed-section";
 import { HeroNav } from "./hero-nav";
 import { EngagementCard } from "./engagement-card";
-import { createWorkspaceFromPrompt } from "@/lib/actions/workspace";
+import { submitHomepagePrompt } from "@/lib/actions/workspace";
 
 const COUNT_START = 24;
 const COUNT_DURATION_MS = 2500;
 const HERO_PROMPT_EXAMPLES = [
-  "Create memes for my coffee shop to help engage people on Instagram",
-  "Make funny memes for a personal trainer targeting busy professionals",
-  "Create a viral slideshow for a skincare brand to post on TikTok",
-  "Generate relatable memes for a real estate agent to attract first-time buyers",
+  "Create memes for my plumbing business to post on Instagram",
+  "Make a funny video meme about running a small business",
+  "Generate engagement posts for a fitness coach audience",
+  "Create a slideshow about marketing mistakes for TikTok",
 ] as const;
 const PLACEHOLDER_INITIAL_DELAY_MS = 400;
 const PLACEHOLDER_VISIBLE_MS = 1800;
@@ -66,11 +66,23 @@ export function HeroSection() {
   const [selectedFamilyChip, setSelectedFamilyChip] = useState<HomepageFamilyChip | null>(
     null
   );
+  const [hoveredFamilyChip, setHoveredFamilyChip] = useState<HomepageFamilyChip | null>(
+    null
+  );
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [typedPlaceholder, setTypedPlaceholder] = useState("");
   const [isPromptFocused, setIsPromptFocused] = useState(false);
   const promptFormRef = useRef<HTMLFormElement | null>(null);
   const router = useRouter();
+  const chipHoverText: Record<HomepageFamilyChip, string> = {
+    Image: "Generate a 1080x1080 image meme designed for social feed posts.",
+    Video: "Generate a 1080x1080 video meme designed for social feed posts.",
+    Text: "Generate a 1080x1080 text-only meme designed for social feed posts.",
+    Slideshow:
+      "Generate a 1080x1920 slideshow designed for Instagram Reels and TikTok.",
+    Engagement:
+      "Generate a post designed to boost engagement on Facebook, Instagram, or LinkedIn.",
+  };
 
   useEffect(() => {
     const isInteracting = isPromptFocused || prompt.trim().length > 0;
@@ -289,7 +301,7 @@ export function HeroSection() {
                               }
                             : null;
 
-                const result = await createWorkspaceFromPrompt(
+                const result = await submitHomepagePrompt(
                   nextPrompt,
                   familyMapping ?? undefined
                 );
@@ -302,12 +314,18 @@ export function HeroSection() {
               }}
               className="mx-auto mt-10 w-full max-w-4xl"
             >
-              <div className="relative overflow-hidden rounded-[30px] border border-stone-200/90 bg-gradient-to-b from-white to-stone-50 p-3 shadow-[0_18px_55px_rgba(20,24,40,0.14)] ring-1 ring-white/80">
+              <div className="relative overflow-visible rounded-[30px] border border-stone-200/90 bg-gradient-to-b from-white to-stone-50 p-3 shadow-[0_18px_55px_rgba(20,24,40,0.14)] ring-1 ring-white/80">
                 <div className="relative rounded-[24px] border border-stone-200/80 bg-white/95 p-5 sm:p-6">
                   <label htmlFor="hero-prompt" className="sr-only">
                     Describe what you want to generate
                   </label>
-                  <div className="mb-4 flex flex-wrap gap-2">
+                  <div className="relative mb-4">
+                    {hoveredFamilyChip ? (
+                      <div className="pointer-events-none absolute -top-11 left-0 z-20 hidden rounded-full border border-stone-200/90 bg-white/95 px-5 py-2 text-[13px] font-semibold leading-none text-stone-700 shadow-md ring-1 ring-stone-100 md:inline-flex">
+                        {chipHoverText[hoveredFamilyChip]}
+                      </div>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
                     {(
                       [
                         "Image",
@@ -318,65 +336,95 @@ export function HeroSection() {
                       ] as HomepageFamilyChip[]
                     ).map((label) => {
                       const isActive = selectedFamilyChip === label;
+                      const hasAnySelection = selectedFamilyChip !== null;
                       const chipColor =
                         label === "Image"
                           ? {
-                              activeBg: "bg-sky-50/80",
-                              activeBorder: "border-sky-200",
-                              activeText: "text-sky-800",
+                              baseBg: "bg-sky-50/60",
+                              baseBorder: "border-sky-200/70",
+                              baseText: "text-sky-800",
+                              activeBg: "bg-sky-100",
+                              activeBorder: "border-sky-400",
+                              activeText: "text-sky-900",
                               hoverBg: "hover:bg-sky-50/50",
                             }
                           : label === "Video"
                             ? {
-                                activeBg: "bg-violet-50/80",
-                                activeBorder: "border-violet-200",
-                                activeText: "text-violet-800",
+                                baseBg: "bg-violet-50/60",
+                                baseBorder: "border-violet-200/70",
+                                baseText: "text-violet-800",
+                                activeBg: "bg-violet-100",
+                                activeBorder: "border-violet-400",
+                                activeText: "text-violet-900",
                                 hoverBg: "hover:bg-violet-50/50",
                               }
                             : label === "Text"
                               ? {
-                                  activeBg: "bg-amber-50/90",
-                                  activeBorder: "border-amber-200",
+                                  baseBg: "bg-amber-50/75",
+                                  baseBorder: "border-amber-200/70",
+                                  baseText: "text-amber-900",
+                                  activeBg: "bg-amber-100",
+                                  activeBorder: "border-amber-400",
                                   activeText: "text-amber-900",
                                   hoverBg: "hover:bg-amber-50/55",
                                 }
                               : label === "Slideshow"
                                 ? {
-                                    activeBg: "bg-emerald-50/80",
-                                    activeBorder: "border-emerald-200",
-                                    activeText: "text-emerald-800",
+                                    baseBg: "bg-emerald-50/60",
+                                    baseBorder: "border-emerald-200/70",
+                                    baseText: "text-emerald-800",
+                                    activeBg: "bg-emerald-100",
+                                    activeBorder: "border-emerald-400",
+                                    activeText: "text-emerald-900",
                                     hoverBg: "hover:bg-emerald-50/50",
                                   }
                                 : {
-                                    activeBg: "bg-rose-50/80",
-                                    activeBorder: "border-rose-200",
-                                    activeText: "text-rose-800",
+                                    baseBg: "bg-rose-50/60",
+                                    baseBorder: "border-rose-200/70",
+                                    baseText: "text-rose-800",
+                                    activeBg: "bg-rose-100",
+                                    activeBorder: "border-rose-400",
+                                    activeText: "text-rose-900",
                                     hoverBg: "hover:bg-rose-50/50",
                                   };
 
+                      const tooltipText = chipHoverText[label];
                       return (
-                        <button
-                          key={label}
-                          type="button"
-                          onClick={() => {
-                            setSelectedFamilyChip((cur) =>
-                              cur === label ? null : label
-                            );
-                            if (promptError) setPromptError(null);
-                          }}
-                          className={[
-                            "cursor-pointer rounded-full border border-stone-300 bg-stone-50/70 px-2.5 py-1.25 text-[12px] font-semibold shadow-sm ring-1 ring-white/70 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-200/80 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-                            isActive
-                              ? `${chipColor.activeBg} ${chipColor.activeBorder} ${chipColor.activeText}`
-                              : `text-stone-700 hover:bg-stone-100/70`,
-                            isActive ? "" : chipColor.hoverBg,
-                          ].join(" ")}
-                          aria-pressed={isActive}
-                        >
-                          {label}
-                        </button>
+                        <div key={label} className="relative">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedFamilyChip((cur) =>
+                                cur === label ? null : label
+                              );
+                              if (promptError) setPromptError(null);
+                            }}
+                            onMouseEnter={() => setHoveredFamilyChip(label)}
+                            onMouseLeave={() => setHoveredFamilyChip((cur) => (cur === label ? null : cur))}
+                            onFocus={() => setHoveredFamilyChip(label)}
+                            onBlur={() => setHoveredFamilyChip((cur) => (cur === label ? null : cur))}
+                            className={[
+                              "cursor-pointer rounded-full border px-2.5 py-1.25 text-[12px] font-semibold shadow-sm ring-1 ring-white/70 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-200/80 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+                              isActive
+                                ? `${chipColor.activeBg} ${chipColor.activeBorder} ${chipColor.activeText} scale-[1.03] shadow-md ring-2 ring-current/20`
+                                : `${chipColor.baseBg} ${chipColor.baseBorder} ${chipColor.baseText}`,
+                              !isActive && hasAnySelection ? "opacity-75" : "",
+                              isActive ? "" : chipColor.hoverBg,
+                            ].join(" ")}
+                            aria-pressed={isActive}
+                            aria-label={`${label}. ${tooltipText}`}
+                          >
+                            <span className="inline-flex items-center gap-1.5">
+                              {isActive ? (
+                                <span aria-hidden="true" className="text-[11px] leading-none">✓</span>
+                              ) : null}
+                              <span>{label}</span>
+                            </span>
+                          </button>
+                        </div>
                       );
                     })}
+                    </div>
                   </div>
 
                   <div className="relative">

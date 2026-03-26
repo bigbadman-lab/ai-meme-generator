@@ -372,13 +372,27 @@ export async function generateMockMemes(
     v !== null && v !== undefined && String(v).trim().length > 0;
 
   const hasSlot3 = (t: any): boolean => {
-    // We treat any evidence of a 3rd slot as incompatible with the current 1/2-slot schema.
     return (
       nonEmpty(t.slot_3_role) ||
       t.slot_3_max_chars != null ||
       t.slot_3_max_lines != null ||
       t.slot_3_x != null ||
-      t.slot_3_y != null
+      t.slot_3_y != null ||
+      t.slot_3_width != null ||
+      t.slot_3_height != null
+    );
+  };
+
+  const hasCompleteSlot3Definition = (t: any): boolean => {
+    if (!hasSlot3(t)) return false;
+    return (
+      nonEmpty(t.slot_3_role) &&
+      t.slot_3_max_chars != null &&
+      t.slot_3_max_lines != null &&
+      t.slot_3_x != null &&
+      t.slot_3_y != null &&
+      t.slot_3_width != null &&
+      t.slot_3_height != null
     );
   };
 
@@ -430,6 +444,53 @@ export async function generateMockMemes(
     if (!trimmed) return true;
     if (endsWithDanglingConnector(trimmed)) return true;
     return false;
+  };
+
+  const looksLikeIncompleteReactionSetup = (text: string): boolean => {
+    const trimmed = text.trim();
+    if (!trimmed) return true;
+
+    // Common open-ended reaction setup stems that often require a missing second beat.
+    const startsLikeReactionSetup =
+      /^when\b/i.test(trimmed) ||
+      /^when you\b/i.test(trimmed) ||
+      /^me when\b/i.test(trimmed) ||
+      /^that moment when\b/i.test(trimmed);
+    if (!startsLikeReactionSetup) return false;
+
+    // Open reportive endings: "and the client says", "and he goes", "and she asks", etc.
+    if (
+      /\b(and\s+)?(the\s+\w+\s+)?(client|customer|boss|manager|he|she|they|someone|everyone)\s+(says|goes|asks|asked|tells|told)\s*$/i.test(
+        trimmed
+      )
+    ) {
+      return true;
+    }
+    if (
+      /\b(and\s+)?(you|they|he|she)\s+(say|go|ask|tell)\s*$/i.test(trimmed)
+    ) {
+      return true;
+    }
+    if (/\b(and\s+)?(is|was)\s+like\s*$/i.test(trimmed)) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const isReactionStyleTopCaptionTemplate = (
+    template: CompatibleTemplate
+  ): boolean => {
+    if (template.template_type !== "top_caption") return false;
+    const combined = `${template.meme_mechanic} ${template.slot_1_role} ${template.emotion_style}`
+      .toLowerCase()
+      .trim();
+    return (
+      combined.includes("reaction") ||
+      combined.includes("exhausted") ||
+      combined.includes("overwhelmed") ||
+      combined.includes("frustrated")
+    );
   };
 
   const looksLikeShortLabel = (text: string): boolean => {
@@ -499,6 +560,7 @@ export async function generateMockMemes(
       allowShortLabelMode?: boolean;
       templateSlug?: string;
       templateType?: TemplateType;
+      isReactionStyleTopCaptionTemplate?: boolean;
     }
   ): { value: string | null; failRule: string | null; length: number | null } => {
     const cleaned = normalizeSingleLine(v);
@@ -556,6 +618,17 @@ export async function generateMockMemes(
         length: cleaned.length,
       };
     }
+    if (
+      options?.isReactionStyleTopCaptionTemplate &&
+      slotLabel === "slot_1" &&
+      looksLikeIncompleteReactionSetup(cleaned)
+    ) {
+      return {
+        value: null,
+        failRule: `${slotLabel}_incomplete_reaction_setup`,
+        length: cleaned.length,
+      };
+    }
     return { value: cleaned, failRule: null, length: cleaned.length };
   };
 
@@ -606,7 +679,7 @@ export async function generateMockMemes(
     example_output: string;
     isTwoSlot: boolean;
 
-    // Rendering metadata (MVP: 1-slot / 2-slot only)
+    // Rendering metadata (supports 1-slot / 2-slot / 3-slot templates)
     image_filename?: string | null;
     source_media_path?: string | null;
     preview_image_filename?: string | null;
@@ -627,6 +700,10 @@ export async function generateMockMemes(
     slot_2_y?: number | null;
     slot_2_width?: number | null;
     slot_2_height?: number | null;
+    slot_3_x?: number | null;
+    slot_3_y?: number | null;
+    slot_3_width?: number | null;
+    slot_3_height?: number | null;
   };
 
   type EngagementLayoutConfig = {
@@ -763,6 +840,104 @@ Slot 1:
 - max_chars: ${template.slot_1_max_chars}
 - max_lines: ${template.slot_1_max_lines}`;
     }
+  };
+
+  const isThreeSlotTemplate = (template: CompatibleTemplate): boolean =>
+    Boolean(template.slot_3_role);
+
+  const isStructuredThreeSlotDebateTemplate = (
+    template: CompatibleTemplate
+  ): boolean => {
+    if (!isThreeSlotTemplate(template)) return false;
+    const role1 = String(template.slot_1_role ?? "").toLowerCase();
+    const role2 = String(template.slot_2_role ?? "").toLowerCase();
+    const role3 = String(template.slot_3_role ?? "").toLowerCase();
+    const hasSubjectCenterRole = /(subject|topic|issue|problem|theme|question)/.test(
+      role2
+    );
+    const hasTakeStyleSides =
+      /(take|opinion|approach|perspective|stance|side|solution|method)/.test(
+        role1
+      ) &&
+      /(take|opinion|approach|perspective|stance|side|solution|method)/.test(
+        role3
+      );
+    return hasSubjectCenterRole && hasTakeStyleSides;
+  };
+
+  const getStructuredThreeSlotDebatePromptGuidance = (
+    template: CompatibleTemplate
+  ): string => {
+    if (!isStructuredThreeSlotDebateTemplate(template)) return "";
+    return `Structured three-slot debate mode:
+- This is a 3-slot contrast/debate template with distinct roles.
+- slot_1_text = left-side take (one approach/opinion).
+- slot_2_text = central subject only (compact noun/topic label, not a sentence).
+- slot_3_text = right-side contrasting take (different approach/opinion).
+- slot_1_text and slot_3_text must disagree, contrast, or propose different ways to handle the same subject.
+- slot_2_text target length: 1-3 words ideally; 4 words only if absolutely necessary.
+- Avoid setup-caption patterns like "when you...", "when...", "POV...", "me when...".
+- Keep all three slots scannable and punchy on-image.
+
+Correct 3-slot examples:
+{
+  "slot_1_text": "Just pour boiling water",
+  "slot_2_text": "Clogged sink",
+  "slot_3_text": "Call a plumber"
+}
+{
+  "slot_1_text": "Ship it now",
+  "slot_2_text": "Homepage redesign",
+  "slot_3_text": "Do user tests first"
+}
+{
+  "slot_1_text": "Post every day",
+  "slot_2_text": "Instagram growth",
+  "slot_3_text": "Focus on quality"
+}`;
+  };
+
+  const looksConversationalClause = (text: string): boolean => {
+    return (
+      /\b(i|we|you|they)\b/i.test(text) ||
+      /\b(should|need to|have to|must|can|can't|dont|don't|won't|will)\b/i.test(
+        text
+      ) ||
+      /\b(when|if|because|while|since|after|before|how to)\b/i.test(text)
+    );
+  };
+
+  const validateThreeSlotCenterSubject = (
+    value: string
+  ): { value: string | null; failRule: string | null } => {
+    const cleaned = normalizeSingleLine(value);
+    if (!cleaned) return { value: null, failRule: "slot_2_missing_or_invalid" };
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    if (words.length > 4) {
+      return { value: null, failRule: "slot_2_not_short_subject" };
+    }
+    if (words.length > 3) {
+      // 4 words are allowed only as an exception; keep strong pressure toward compact labels.
+      const hasLabelSignals = /\b(strategy|plan|issue|problem|topic|budget|cost|flow|stack|roadmap|funnel|campaign|design|draft|review)\b/i.test(
+        cleaned
+      );
+      if (!hasLabelSignals) {
+        return { value: null, failRule: "slot_2_not_compact_label" };
+      }
+    }
+    if (/[.!?]/.test(cleaned)) {
+      if (/\?/.test(cleaned)) {
+        return { value: null, failRule: "slot_2_question_like_subject" };
+      }
+      return { value: null, failRule: "slot_2_sentence_like_subject" };
+    }
+    if (/^(when|if|because|while|since|after|before|how|why|what)\b/i.test(cleaned)) {
+      return { value: null, failRule: "slot_2_sentence_like_subject" };
+    }
+    if (looksConversationalClause(cleaned)) {
+      return { value: null, failRule: "slot_2_clause_like_subject" };
+    }
+    return { value: cleaned, failRule: null };
   };
 
   /** LLM contract for template_family square_text only (plain text card; no base image/video). */
@@ -1166,6 +1341,50 @@ Slot 1:
 - Keep the title under ${TITLE_MAX_CHARS} characters.`;
     }
 
+    if (previousFailureRule === "slot_1_incomplete_reaction_setup") {
+      return `Retry correction:
+- slot_1 reads like an unfinished setup line and needs a complete reaction thought.
+- Do not end with open reportive phrasing like "and the client says/goes/asks".
+- Rewrite slot_1 as a fully finished, standalone reaction caption.
+- Keep it meme-native and complete on one line.`;
+    }
+
+    if (previousFailureRule === "slot_2_not_short_subject") {
+      return `Retry correction:
+- slot_2_text must be a compact central subject label.
+- Target 1-3 words (4 only if absolutely necessary).
+- Use noun/topic label style only (e.g. "Clogged sink", "Homepage redesign", "Instagram growth").
+- Do not write a clause or sentence in slot_2_text.`;
+    }
+
+    if (previousFailureRule === "slot_2_sentence_like_subject") {
+      return `Retry correction:
+- slot_2_text must not be sentence-like.
+- Remove punctuation-heavy phrasing and avoid openers like "when", "if", or "because".
+- Keep slot_2_text as a compact subject label only (1-3 words preferred).`;
+    }
+
+    if (previousFailureRule === "slot_2_question_like_subject") {
+      return `Retry correction:
+- slot_2_text cannot be a question.
+- Remove question framing and rewrite as a short topic label.
+- Good pattern: "Topic name" / "Issue name" / "Subject phrase".`;
+    }
+
+    if (previousFailureRule === "slot_2_clause_like_subject") {
+      return `Retry correction:
+- slot_2_text cannot read like conversational speech or a clause.
+- Remove pronouns and helper verbs; rewrite to a compact issue/topic name.
+- Keep it short and label-style (1-3 words preferred).`;
+    }
+
+    if (previousFailureRule === "slot_2_not_compact_label") {
+      return `Retry correction:
+- slot_2_text is too verbose for a center subject label.
+- Compress it to a short issue/topic phrase (1-3 words preferred).
+- If 4 words are used, they must still read like a tight noun/topic label.`;
+    }
+
     if (previousFailureRule.endsWith("_missing_or_invalid") && slotLabel && slotMaxChars) {
       return `Retry correction:
 - ${slotLabel} was missing or invalid.
@@ -1344,9 +1563,9 @@ ${getTemplateTypeRetryShape()}`;
         return assetType === targetAssetType;
       })
       .filter((t: any) => {
-        const slug = String(t.slug ?? "").trim().toLowerCase();
-        if (slug === "distracted-boyfriend") return true;
-        return !hasSlot3(t);
+        // If slot 3 is present, require full slot-3 contract so partially-configured
+        // templates do not pass selection and then fail at generation/render time.
+        return !hasSlot3(t) || hasCompleteSlot3Definition(t);
       })
       .map((t: any) => {
         const template_id = String(
@@ -1417,6 +1636,10 @@ ${getTemplateTypeRetryShape()}`;
           slot_2_y: toNullableInt(t.slot_2_y),
           slot_2_width: toNullableInt(t.slot_2_width),
           slot_2_height: toNullableInt(t.slot_2_height),
+          slot_3_x: toNullableInt(t.slot_3_x),
+          slot_3_y: toNullableInt(t.slot_3_y),
+          slot_3_width: toNullableInt(t.slot_3_width),
+          slot_3_height: toNullableInt(t.slot_3_height),
         } satisfies CompatibleTemplate;
       })
       .filter((t) => t.template_id && t.template_name && t.slug && t.slot_1_role);
@@ -1785,6 +2008,8 @@ IMPORTANT DAY WRITING RULES
 
     const { topIdeal, bottomIdeal } = getIdealSlotTargets(template, attempt);
     const isThreeSlot = !!template.slot_3_role;
+    const structuredThreeSlotDebateMode =
+      isStructuredThreeSlotDebateTemplate(template);
     const engagementLayout = getEngagementLayoutConfig(template);
     const namesCount = engagementLayout?.namesCount ?? null;
     const engagementLayoutKey = getEngagementLayoutKey(template);
@@ -1916,6 +2141,7 @@ ${isThreeSlot
 - Keep each slot value single-line and complete.
 - Do not include newline characters in any slot value.`
   : ""}
+${getStructuredThreeSlotDebatePromptGuidance(template)}
 ${mechanicSpecificGuidance}
 ${templateSpecificGuidance}
 ${getUltraTightPromptGuidance(template)}
@@ -1940,6 +2166,11 @@ ${
 - top_text should ideally be <= ${topIdeal} characters.
 - bottom_text MUST be <= ${template.slot_2_max_chars} characters when present, and complete.
 - bottom_text should ideally be <= ${bottomIdeal} characters when present.
+${structuredThreeSlotDebateMode
+  ? `- For structured 3-slot debate templates: slot_2_text must be a compact central subject label (1-3 words ideally; 4 only if absolutely necessary), not a sentence.
+- For structured 3-slot debate templates: slot_1_text and slot_3_text must present contrasting takes about the same slot_2 subject.
+- For structured 3-slot debate templates: do not use setup openers like "when you...", "when...", "POV...", or "me when..." in any slot.`
+  : ""}
 - Do not include markdown, HTML, code blocks, or newline characters.
 - Do not include disallowed/unsafe content (hate, sexual, illegal, harassment, personal data).
 
@@ -1950,6 +2181,10 @@ ${template.template_family === "engagement_text" ? getEngagementLayoutKey(templa
 - If not, rewrite before returning JSON.` : `- Is top_text niche-specific and likely to trigger comments when plugged into: "I hate [keyword] because"?
 - Does top_text avoid generic category words (e.g. marketing, business, fitness, success)?
 - Does top_text NOT include "I hate" or "because"?
+- If not, rewrite before returning JSON.` : structuredThreeSlotDebateMode ? `- Does slot_2_text read as a compact subject label (1-3 words ideally; 4 only if truly necessary), not a sentence/question/clause?
+- Do slot_1_text and slot_3_text clearly contrast as two different takes on that subject?
+- Are all slots concise and scannable on-image?
+- Does the output avoid "when you..." style setup lines?
 - If not, rewrite before returning JSON.` : `- Is the caption a specific situation rather than a generic statement?
 - Does it include at least one tangible detail from a real moment?
 - Is the emotional mechanic obvious for this template?
@@ -2084,6 +2319,8 @@ ${isThreeSlot
         allowShortLabelMode: allowShortLabelValidationMode(template),
         templateSlug: template.slug,
         templateType: template.template_type,
+        isReactionStyleTopCaptionTemplate:
+          isReactionStyleTopCaptionTemplate(template),
       }
     );
     const rawBottom = slot2Value;
@@ -2171,6 +2408,26 @@ ${isThreeSlot
         result: null,
         failureRule: bottomValidation.failRule ?? "validation_failed",
       };
+    }
+
+    if (isThreeSlot && structuredThreeSlotDebateMode && bottomValidation.value) {
+      const centerSubjectValidation = validateThreeSlotCenterSubject(
+        bottomValidation.value
+      );
+      if (!centerSubjectValidation.value) {
+        console.error("[meme-gen] Validation failed", {
+          template: `${template.template_name} (${template.slug})`,
+          templateType: template.template_type,
+          attempt,
+          slotType: "3-slot",
+          rule: centerSubjectValidation.failRule,
+          slot_2_text: bottomValidation.value,
+        });
+        return {
+          result: null,
+          failureRule: centerSubjectValidation.failRule ?? "validation_failed",
+        };
+      }
     }
 
     if (namesCount && !namesValidation.value) {
