@@ -45,16 +45,33 @@ export function FounderSection() {
 
             <div className="mt-4 flex flex-col gap-3">
               <p className="marketing-copy text-stone-700 leading-relaxed">
-                More than a decade ago I grew a Facebook page to over two million
-                followers by sharing memes.
+                More than a decade ago, I grew a Facebook page to over two million followers by
+                sharing memes.
               </p>
               <p className="marketing-copy text-stone-700 leading-relaxed">
-                Over the years I’ve worked with some of the biggest social media
-                publishers and seen first-hand how memes have become the
-                internet’s most powerful form of communication.
+                Since then, I&apos;ve worked with some of the biggest social media publishers and
+                learned what actually makes content spread.
               </p>
               <p className="marketing-copy text-stone-700 leading-relaxed">
-                I built Mimly to help every business tap into that same power.
+                It&apos;s not just memes. Some of the best-performing posts are simple ideas designed
+                to get people to engage, comment, share, and interact. What I call engagement
+                posts.
+              </p>
+              <p className="marketing-copy text-stone-700 leading-relaxed">
+                I also learned that organic reach isn&apos;t dead. Most brands just skip it too
+                quickly.
+              </p>
+              <p className="marketing-copy text-stone-700 leading-relaxed">
+                They jump straight into paid ads without understanding what their audience
+                responds to. But when you get organic right first, everything else becomes easier,
+                including paid.
+              </p>
+              <p className="marketing-copy text-stone-700 leading-relaxed">
+                That&apos;s why I built Mimly.
+              </p>
+              <p className="marketing-copy text-stone-700 leading-relaxed">
+                Mimly helps you turn ideas into content that&apos;s ready to post, from memes to
+                engagement-driven posts, all designed to reach more people, naturally.
               </p>
             </div>
 

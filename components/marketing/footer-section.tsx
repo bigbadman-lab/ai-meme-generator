@@ -11,6 +11,8 @@ const FOOTER_LINKS = {
   company: [
     { label: "About", href: "/about" },
     { label: "Contact", href: "/contact" },
+    { label: "Privacy Policy", href: "/privacy-policy" },
+    { label: "Terms of Service", href: "/terms-of-service" },
   ],
   account: [
     { label: "Log in", href: "/login" },
@@ -99,8 +101,16 @@ export function FooterSection() {
         <p className="text-left text-xs text-stone-500">
           © {new Date().getFullYear()} Mimly. All rights reserved.
         </p>
-        <p className="text-left text-xs text-stone-500 sm:text-right">
-          Built with ☕️ by{" "}
+        <div className="flex items-center gap-2 text-left text-xs text-stone-500 sm:justify-end">
+          <span>Built with</span>
+          <Image
+            src="/nextjs.png"
+            alt="Next.js"
+            width={72}
+            height={18}
+            className="h-4 w-auto"
+          />
+          <span>by</span>
           <a
             href="https://x.com/alexattinger"
             target="_blank"
@@ -109,7 +119,7 @@ export function FooterSection() {
           >
             Alex
           </a>
-        </p>
+        </div>
       </div>
     </FramedSection>
   );

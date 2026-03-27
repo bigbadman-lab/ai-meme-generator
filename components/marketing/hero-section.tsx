@@ -317,7 +317,7 @@ export function HeroSection() {
                     Describe what you want to generate
                   </label>
                   <div className="relative mb-4">
-                    {hoveredFamilyChip ? (
+                    {hoveredFamilyChip && selectedFamilyChip === null ? (
                       <div className="pointer-events-none absolute top-full left-0 z-20 mt-2 hidden max-w-[320px] rounded-2xl border border-stone-200/90 bg-white/95 px-4 py-2.5 text-[13px] font-semibold leading-snug text-stone-700 shadow-md ring-1 ring-stone-100 whitespace-normal md:flex">
                         {chipHoverText[hoveredFamilyChip]}
                       </div>
