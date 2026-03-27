@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 
 const NAV_LINKS = [
-  { href: "/#features-heading", label: "Product" },
+  { href: "/#showcase-heading", label: "Product" },
   { href: "/#pricing-heading", label: "Pricing" },
   { href: "/#faq-heading", label: "FAQ" },
 ];

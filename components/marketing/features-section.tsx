@@ -6,7 +6,7 @@ const STEPS = [
     number: "1",
     title: "Type your idea",
     description: "Enter a simple prompt describing the content you want.",
-    image: "/understand.png",
+    image: "/understand1.png",
     rotation: "lg:-rotate-[4deg]",
     desktopOffset: "lg:translate-y-10",
   },
@@ -15,7 +15,7 @@ const STEPS = [
     title: "Mimly creates the concept",
     description:
       "Our AI turns it into meme-ready ideas using proven formats and trends.",
-    image: "/context.png",
+    image: "/context1.png",
     rotation: "lg:rotate-0",
     desktopOffset: "lg:-translate-y-2",
   },
@@ -24,7 +24,7 @@ const STEPS = [
     title: "Generate and post",
     description:
       "Get fully designed memes and slideshows, ready to share instantly.",
-    image: "/post.png",
+    image: "/post2.png",
     rotation: "lg:rotate-[4deg]",
     desktopOffset: "lg:translate-y-8",
   },
@@ -36,7 +36,7 @@ function StepCard({
   step: (typeof STEPS)[number];
 }) {
   return (
-    <article className="rounded-[1.6rem] border border-white/10 bg-white/[0.04] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+    <article className="rounded-[1.6rem] border border-stone-200/80 bg-white/70 p-3 shadow-[0_14px_35px_rgba(15,23,42,0.09)] backdrop-blur-xl">
       <div className="relative overflow-hidden rounded-[1.2rem]">
         <Image
           src={step.image}
@@ -52,9 +52,9 @@ function StepCard({
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-[11px] font-semibold text-white">
             {step.number}
           </span>
-          <h3 className="text-base font-semibold text-white">{step.title}</h3>
+          <h3 className="text-base font-semibold text-stone-900">{step.title}</h3>
         </div>
-        <p className="mt-2 text-sm leading-relaxed text-stone-400">
+        <p className="mt-2 text-sm leading-relaxed text-stone-600">
           {step.description}
         </p>
       </div>
@@ -65,23 +65,23 @@ function StepCard({
 export function FeaturesSection() {
   return (
     <FramedSection
-      variant="footer"
-      backgroundVariant="footer"
+      variant="default"
+      backgroundVariant="features"
       id="features-heading"
       aria-labelledby="features-heading"
       className="w-full"
     >
       <div className="mx-auto max-w-3xl text-center">
-        <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-stone-300">
+        <span className="inline-flex rounded-full border border-stone-200/80 bg-white/70 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-stone-600">
           The process
         </span>
         <h2
           id="features-heading"
-          className="mt-5 text-3xl font-bold tracking-tight text-white md:text-5xl"
+          className="mt-5 text-3xl font-bold tracking-tight text-stone-900 md:text-5xl"
         >
           Behind the memes
         </h2>
-        <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-stone-400 md:text-base">
+        <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-stone-600 md:text-base">
           Mimly turns a simple prompt into social-ready memes and slideshows in
           seconds - just type, generate, and post.
         </p>

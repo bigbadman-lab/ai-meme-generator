@@ -29,7 +29,7 @@ export function PromptComposer({
       className="mt-1"
     >
       <div
-        className={`rounded-[24px] border px-3 py-2 shadow-[0_8px_24px_rgba(20,20,20,0.08)] transition focus-within:shadow-[0_0_0_4px_rgba(14,165,233,0.12)] ${
+        className={`rounded-[24px] border px-3 py-2 shadow-[0_8px_24px_rgba(20,20,20,0.08)] transition focus-within:border-sky-300 focus-within:ring-2 focus-within:ring-inset focus-within:ring-sky-200/70 ${
           isDisabled ? "border-stone-200 bg-stone-100/85" : "border-stone-200 bg-white"
         }`}
       >
