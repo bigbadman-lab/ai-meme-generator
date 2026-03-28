@@ -53,7 +53,7 @@ export function WorkspaceShell({
 
   const planLabel = useMemo(() => {
     if (state.workspace.current_plan === "starter_pack") return "Starter Pack";
-    if (state.workspace.current_plan === "unlimited") return "Unlimited";
+    if (state.workspace.current_plan === "unlimited") return "Pro";
     return "Free Preview";
   }, [state.workspace.current_plan]);
   const planChipClass = useMemo(() => {
@@ -211,73 +211,85 @@ export function WorkspaceShell({
             </div>
           </div>
         </div>
-        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-          {/* min-h-0 (not a fixed min-height) so this region can shrink when the processing row is visible; otherwise the help block is clipped in a fixed-height aside. */}
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-            <MessageList
-              messages={sidebarMessages}
-              onPillClick={submitMessage}
-            />
-          </div>
-
-          {isJobActive ? (
-            <div className="shrink-0 rounded-2xl border border-sky-100 bg-white/80 px-2.5 py-1.5">
-              <div className="flex items-center gap-2 text-[11px] leading-tight text-sky-700">
-                <div className="flex items-center gap-1">
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"
-                    style={{ animationDelay: "0ms" }}
-                  />
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"
-                    style={{ animationDelay: "180ms" }}
-                  />
-                  <span
-                    className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"
-                    style={{ animationDelay: "360ms" }}
-                  />
-                </div>
-                <span>Working on this now...</span>
-              </div>
+        <div className="mt-3 grid min-h-0 flex-1 grid-rows-1 gap-3 overflow-hidden lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
+          {/* Chat zone: ~50% of sidebar on lg; full height when help is hidden */}
+          <div className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-2xl border border-stone-200/90 bg-white/85 p-3 shadow-[0_2px_12px_rgba(15,23,42,0.04)] ring-1 ring-stone-200/40 sm:p-3.5">
+            <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">
+              Chat
+            </p>
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <MessageList
+                messages={sidebarMessages}
+                onPillClick={submitMessage}
+              />
             </div>
-          ) : null}
 
-          <div className="shrink-0 border-t border-stone-200/90 bg-stone-50/90 pt-3">
-            <PromptComposer
-              disabled={isAuthLocked || isPlanLocked}
-              disabledPlaceholder={
-                isAuthLocked
-                  ? "Sign in to continue this thread"
-                  : isPlanLocked
-                    ? "Choose a plan to continue this thread"
-                    : "What should we create next?"
-              }
-              onSubmit={(prompt) => submitMessage(prompt, startFreshNext)}
-            />
-            {error ? <p className="mt-2 text-xs text-rose-600">{error}</p> : null}
+            {isJobActive ? (
+              <div className="shrink-0 rounded-xl border border-sky-100/90 bg-sky-50/60 px-2.5 py-1.5">
+                <div className="flex items-center gap-2 text-[11px] leading-tight text-sky-700">
+                  <div className="flex items-center gap-1">
+                    <span
+                      className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"
+                      style={{ animationDelay: "0ms" }}
+                    />
+                    <span
+                      className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"
+                      style={{ animationDelay: "180ms" }}
+                    />
+                    <span
+                      className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse"
+                      style={{ animationDelay: "360ms" }}
+                    />
+                  </div>
+                  <span>Working on this now...</span>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="shrink-0 border-t border-stone-200/80 pt-2.5">
+              <PromptComposer
+                disabled={isAuthLocked || isPlanLocked}
+                disabledPlaceholder={
+                  isAuthLocked
+                    ? "Sign in to continue this thread"
+                    : isPlanLocked
+                      ? "Choose a plan to continue this thread"
+                      : "What should we create next?"
+                }
+                onSubmit={(prompt) => submitMessage(prompt, startFreshNext)}
+              />
+              {error ? <p className="mt-2 text-xs text-rose-600">{error}</p> : null}
+            </div>
           </div>
 
-          <div className="hidden shrink-0 rounded-2xl border border-stone-200/90 bg-white/70 px-3 py-3 text-[11px] leading-relaxed text-stone-500 lg:block">
-            <p className="mb-2 text-xs font-semibold text-stone-700">How Mimly works</p>
-            <p>Each message generates one piece of content.</p>
-            <p>Ask for “more ideas” to get another variation in the same format.</p>
-            <p className="mt-2">
-              You can switch topics at any time — no need to start over.
+          {/* Help: ~50% on lg, scrollable; hidden on smaller breakpoints */}
+          <div className="hidden min-h-0 flex-col overflow-hidden lg:flex">
+            <p className="mb-1.5 shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-500">
+              How it works
             </p>
-            <p className="mt-2">Pin results you like to keep them at the top of your workspace.</p>
-            <p className="mt-2">
-              Mimly is a guided creative tool, not a fully open-ended AI — clearer prompts lead to better results.
-            </p>
-            <p className="mt-2 text-xs font-semibold text-stone-700">Available formats</p>
-            <p>Image memes (1080x1080)</p>
-            <p>Video memes (1080x1080)</p>
-            <p>Text memes (1080x1080)</p>
-            <p>Engagement posts (1080x1080)</p>
-            <p>Slideshows (1080x1920)</p>
-            <p className="mt-2 text-xs font-semibold text-stone-700">Tips for best results</p>
-            <p>Be specific if you want high-quality, targeted content.</p>
-            <p>Keep it broad if you&apos;re exploring ideas.</p>
-            <p className="mt-2">All content is generated using Mimly’s AI context engine, designed to turn prompts into viral-ready formats.</p>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-2xl border border-stone-200/90 bg-white/70 px-3 py-3 pr-2 text-[11px] leading-relaxed text-stone-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+              <p className="mb-2 text-xs font-semibold text-stone-700">How Mimly works</p>
+              <p>Each message generates one piece of content.</p>
+              <p>Ask for “more ideas” to get another variation in the same format.</p>
+              <p className="mt-2">
+                To switch topics, select the Start fresh icon (↺) in the header so your next message
+                ignores earlier thread context.
+              </p>
+              <p className="mt-2">Pin results you like to keep them at the top of your workspace.</p>
+              <p className="mt-2">
+                Mimly is a guided creative tool, not a fully open-ended AI — clearer prompts lead to better results.
+              </p>
+              <p className="mt-2 text-xs font-semibold text-stone-700">Available formats</p>
+              <p>Image memes (1080x1080)</p>
+              <p>Video memes (1080x1080)</p>
+              <p>Text memes (1080x1080)</p>
+              <p>Engagement posts (1080x1080)</p>
+              <p>Slideshows (1080x1920)</p>
+              <p className="mt-2 text-xs font-semibold text-stone-700">Tips for best results</p>
+              <p>Be specific if you want high-quality, targeted content.</p>
+              <p>Keep it broad if you&apos;re exploring ideas.</p>
+              <p className="mt-2">All content is generated using Mimly’s AI context engine, designed to turn prompts into viral-ready formats.</p>
+            </div>
           </div>
         </div>
       </aside>
@@ -289,6 +301,14 @@ export function WorkspaceShell({
           workspaceId={workspaceId}
           pinnedCount={pinnedCount}
           gateState={state.workspace.gate_state}
+          onEngagementOutputUpdated={(outputId, patch) => {
+            setState((prev) => ({
+              ...prev,
+              outputs: prev.outputs.map((o) =>
+                o.id === outputId ? { ...o, ...patch } : o
+              ),
+            }));
+          }}
           onTogglePin={async (outputId, shouldPin) => {
             const result = shouldPin
               ? await pinWorkspaceOutput(workspaceId, outputId)

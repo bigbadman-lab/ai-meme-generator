@@ -9,6 +9,7 @@ import {
 import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { renderMemePNGFromTemplate } from "@/renderer/renderMemeTemplate";
+import { renderWowDogeMemePng } from "@/renderer/renderWowDogeMeme";
 import { renderMemeMP4FromTemplate } from "@/renderer/renderMemeVideoTemplate";
 import { renderSquareTextMemePng } from "@/renderer/renderSquareTextMeme";
 import { renderEngagementTextMemePng } from "@/renderer/renderEngagementTextMeme";
@@ -19,6 +20,13 @@ import {
   deriveWorkspaceFamilyTemplateHistory,
   selectTemplatesFromWorkspaceFamilyCycle,
 } from "@/lib/workspace/template-cycle";
+import { sanitizeGeneratedMemeTextFields } from "@/lib/memes/sanitize-meme-text";
+import {
+  buildWowDogeUserPromptBlock,
+  getWowDogeRetrySupplement,
+  isWowDogeTemplateSlug,
+  validateWowDogePhrases,
+} from "@/lib/memes/wow-doge";
 
 export async function generateMockMemes(
   generationContextText?: string,
@@ -113,7 +121,14 @@ export async function generateMockMemes(
     | "side_caption"
     | "overlay"
     | "sign_caption";
-  type EngagementValidationMode = "keyword_phrase";
+  type EngagementValidationMode =
+    | "keyword_phrase"
+    | "one_word_topic"
+    | "agree_disagree_statement"
+    | "hot_take_statement"
+    | "emoji_topic"
+    | "pick_one_options"
+    | "fill_gap_statement";
 
   const normalizePromotionContext = (value: unknown): string | null => {
     if (typeof value !== "string") return null;
@@ -656,7 +671,7 @@ export async function generateMockMemes(
     slug: string;
     /** Drives generation/render routing (square_meme | vertical_slideshow | square_text). */
     template_family: string;
-    /** Raw DB layout key for family-specific behavior (e.g. finish_sentence, birthday_names_list). */
+    /** Raw DB layout key for family-specific behavior (e.g. finish_sentence, one_word, agree_disagree). */
     text_layout_type: string | null;
     template_type: TemplateType;
     asset_type: "image" | "video";
@@ -1024,6 +1039,355 @@ Slot 1:
     return String(template.text_layout_type ?? "").trim().toLowerCase();
   };
 
+  /** Known engagement_text layouts with explicit prompt + validation support. */
+  const ENGAGEMENT_LAYOUT_FINISH_SENTENCE = "finish_sentence";
+  const ENGAGEMENT_LAYOUT_BIRTHDAY_NAMES_LIST = "birthday_names_list";
+  const ENGAGEMENT_LAYOUT_ONE_WORD = "one_word";
+  const ENGAGEMENT_LAYOUT_AGREE_DISAGREE = "agree_disagree";
+  const ENGAGEMENT_LAYOUT_HOT_TAKE = "hot_take";
+  const ENGAGEMENT_LAYOUT_EMOJI_ONLY = "emoji_only";
+  const ENGAGEMENT_LAYOUT_PICK_ONE = "pick_one";
+  const ENGAGEMENT_LAYOUT_FILL_GAP = "fill_gap";
+
+  /**
+   * Hard JSON/text constraints for engagement_text (per text_layout_type).
+   * Keeps prompt logic explicit when adding new layouts.
+   */
+  const getEngagementHardConstraintsBlock = (
+    layoutKey: string,
+    template: CompatibleTemplate,
+    namesCount: number | null
+  ): string => {
+    switch (layoutKey) {
+      case ENGAGEMENT_LAYOUT_BIRTHDAY_NAMES_LIST:
+        return `- For engagement_text.birthday_names_list: top_text and bottom_text are required headline slots for "These {top_text} deserve {bottom_text} for their birthday".
+- names MUST be present as an array with EXACTLY ${namesCount ?? 24} first names.
+- names must contain no duplicates, no surnames, no numbering, and no bullets.`;
+      case ENGAGEMENT_LAYOUT_ONE_WORD:
+        return `- For engagement_text.one_word: top_text MUST be ONLY a short topic phrase — the thing people will describe in one word. It is injected into the fixed on-card copy: "Describe [top_text] in ONE word."
+- Do NOT write instructions, questions, answers, opinions, or full sentences in top_text.
+- Do NOT include the words "Describe", "ONE word", or "in one word" in top_text (the renderer adds those).
+- No quote marks in top_text. No commas. No question marks or sentence-ending periods.
+- bottom_text MUST be null.`;
+      case ENGAGEMENT_LAYOUT_FINISH_SENTENCE:
+        return `- For engagement_text.finish_sentence: top_text MUST be ONLY the keyword/phrase inserted into "I hate [keyword] because". It must NOT contain "I hate" or "because". bottom_text MUST be null.`;
+      case ENGAGEMENT_LAYOUT_AGREE_DISAGREE:
+        return `- For engagement_text.agree_disagree: top_text is a debatable claim for "two camps" (renderer adds "Agree or disagree?"). Lean comparison-style or polarising-but-balanced takes — NOT ranty absolutes.
+- Target length: ideally 45–85 characters; rarely exceed 100; usually under ~16 words (stay under max_chars).
+- Include at least one concrete anchor when possible (tool, ritual, customer type, workflow, scenario).
+- Do NOT include "agree or disagree", questions, audience prompts, quote marks, or thought-leader filler ("the truth is", "here's the thing", "pro tip").
+- Avoid naked abstract nouns ("success", "growth", "marketing") without a concrete hook.
+- Prefer ending without . ! or ? on top_text when possible.
+- bottom_text MUST be null.`;
+      case ENGAGEMENT_LAYOUT_HOT_TAKE:
+        return `- For engagement_text.hot_take: top_text is a sharper, contrarian line than agree_disagree (renderer adds "Hot take:"). Pattern-interrupt energy — not balanced debate phrasing.
+- Target length: ideally 35–75 characters; rarely exceed 90; usually under ~14 words (stay under max_chars).
+- Include at least one concrete anchor when possible (tool, ritual, audience, business scenario).
+- Do NOT include "hot take", meta setups, questions, poll-like tone, LinkedIn/corporate filler, or the same comparison-first style as agree_disagree.
+- Avoid: "the truth is", "here's the thing", "let that sink in", "in today's fast-paced world", "pro tip", "hot tip".
+- Prefer ending without . ! or ? on top_text when possible.
+- bottom_text MUST be null.`;
+      case ENGAGEMENT_LAYOUT_EMOJI_ONLY:
+        return `- For engagement_text.emoji_only: top_text MUST be ONLY a short plain topic (1–5 words) — what people will answer with emojis. Renderer shows: "Describe [top_text] using emojis only."
+- Do NOT include emojis in top_text. Letters and numbers only (plus spaces between words). No punctuation.
+- Do NOT write questions. Do NOT use the words "emoji", "emojis", "describe", or "using" in top_text (the card supplies that framing).
+- bottom_text MUST be null.`;
+      case ENGAGEMENT_LAYOUT_PICK_ONE:
+        return `- For engagement_text.pick_one: top_text is option A and bottom_text is option B. Renderer shows "Pick one:" then both lines.
+- Each option: 1–6 words, label-style, single line, no punctuation, no questions.
+- Options must be a meaningful trade-off for this audience — not a cliché generic pair (e.g. coffee vs tea).
+- Both slots are required.`;
+      case ENGAGEMENT_LAYOUT_FILL_GAP:
+        return `- For engagement_text.fill_gap: top_text MUST be one line that includes the exact blank token ______ (six underscores) as the gap to complete.
+- Conceptual / framework energy (e.g. equations, principles) — not a joke setup, not a question, not audience instructions.
+- Do NOT end top_text with a comma. Avoid question marks anywhere.
+- bottom_text MUST be null.`;
+      default:
+        return `- For this engagement_text template (layout: ${layoutKey || "unknown"}): follow template_logic and the JSON shape. Obey slot roles and max_chars. If the template is one-slot, bottom_text MUST be null unless template metadata explicitly defines a second slot.`;
+    }
+  };
+
+  const getEngagementQualityGateBlock = (
+    layoutKey: string,
+    namesCount: number | null
+  ): string => {
+    switch (layoutKey) {
+      case ENGAGEMENT_LAYOUT_BIRTHDAY_NAMES_LIST:
+        return `- Does the headline read naturally: "These {top_text} deserve {bottom_text} for their birthday"?
+- Is names[] exactly ${namesCount ?? 24} first names, unique, no surnames?
+- Do names match the audience/context where appropriate?
+- If not, rewrite before returning JSON.`;
+      case ENGAGEMENT_LAYOUT_ONE_WORD:
+        return `- Is top_text ONLY a compact topic label (not a question, not the audience's one-word answer, not instructions)?
+- Would it read naturally inside: "Describe {top_text} in ONE word."?
+- Is it 1–5 words, with no quotes, commas, or sentence patterns?
+- If not, rewrite before returning JSON.`;
+      case ENGAGEMENT_LAYOUT_FINISH_SENTENCE:
+        return `- Is top_text niche-specific and likely to trigger comments when plugged into: "I hate [keyword] because"?
+- Does top_text avoid generic category words (e.g. marketing, business, fitness, success)?
+- Does top_text NOT include "I hate" or "because"?
+- If not, rewrite before returning JSON.`;
+      case ENGAGEMENT_LAYOUT_AGREE_DISAGREE:
+        return `- Does top_text sound like a natural yes/no or two-camps debate (comparison, "still works", overrated/underrated, better/worse than) — not a hot-take rant?
+- Is it within the ideal length band (roughly 45–85 characters, under ~16 words)?
+- Does it include a concrete anchor (not just abstract biz nouns)?
+- Would it read naturally with "Agree or disagree?" underneath?
+- If not, rewrite before returning JSON.`;
+      case ENGAGEMENT_LAYOUT_HOT_TAKE:
+        return `- Is top_text clearly bolder and more contrarian than a balanced debate line — timeline energy, not a poll?
+- Is it within the ideal length band (roughly 35–75 characters, under ~14 words)?
+- Does it avoid balanced "X vs Y" debate framing that would fit agree_disagree better?
+- Is it still brand-safe and non-abusive?
+- If not, rewrite before returning JSON.`;
+      case ENGAGEMENT_LAYOUT_EMOJI_ONLY:
+        return `- Is top_text ONLY a compact topic label (1–5 words) with no emojis, no punctuation, and no question vibe?
+- Would it read naturally inside: "Describe {top_text} using emojis only."?
+- Did you avoid meta words like "emoji", "describe", and "using" inside top_text?
+- If not, rewrite before returning JSON.`;
+      case ENGAGEMENT_LAYOUT_PICK_ONE:
+        return `- Do the two options feel like a real dilemma or trade-off for this audience (not a lazy generic comparison)?
+- Are both options short (≤6 words), parallel, and free of punctuation?
+- Are they clearly different (not duplicates or near-duplicates)?
+- If not, rewrite before returning JSON.`;
+      case ENGAGEMENT_LAYOUT_FILL_GAP:
+        return `- Does top_text contain the exact blank ______ and read as one insightful conceptual line (not a joke, not a question)?
+- Is the blank clearly the single missing piece (no trailing comma)?
+- If not, rewrite before returning JSON.`;
+      default:
+        return `- Does top_text match this template's layout contract and stay within character limits?
+- If not, rewrite before returning JSON.`;
+    }
+  };
+
+  /**
+   * Validates top_text for one_word: topic phrase only, suitable for "Describe [topic] in ONE word."
+   */
+  const validateOneWordTopicPhrase = (
+    text: string
+  ): { failRule: string | null } => {
+    const t = text.trim();
+    if (!t) return { failRule: "slot_1_missing_or_invalid" };
+    if (t.endsWith(",")) return { failRule: "one_word_trailing_comma" };
+    if (/,/.test(t)) return { failRule: "one_word_contains_comma" };
+    if (/["'`«»]/.test(t)) return { failRule: "one_word_contains_quotes" };
+    if (/\?/.test(t)) return { failRule: "one_word_question_like" };
+    if (/\./.test(t)) return { failRule: "one_word_sentence_like" };
+    if (/\b(describe|in\s+one\s+word|one\s+word)\b/i.test(t)) {
+      return { failRule: "one_word_instruction_filler" };
+    }
+    if (/^(what|why|how|when|who|which)\b/i.test(t)) {
+      return { failRule: "one_word_question_stem" };
+    }
+    const words = t.split(/\s+/).filter(Boolean);
+    if (words.length < 1 || words.length > 5) {
+      return { failRule: "one_word_word_count" };
+    }
+    if (words.length >= 3 && /\b(are|is|was|were|am|'re|'s)\b/i.test(t)) {
+      return { failRule: "one_word_sentence_like" };
+    }
+    if (words.length >= 4 && /\band\b/i.test(t)) {
+      return { failRule: "one_word_sentence_like" };
+    }
+    return { failRule: null };
+  };
+
+  /** Opinion statement for agree_disagree (renderer adds "Agree or disagree?"). */
+  const validateAgreeDisagreeStatement = (
+    text: string
+  ): { failRule: string | null } => {
+    const t = text.trim();
+    if (!t) return { failRule: "slot_1_missing_or_invalid" };
+    if (t.endsWith(",")) return { failRule: "agree_disagree_trailing_comma" };
+    if (/[.!?]$/.test(t)) return { failRule: "agree_disagree_trailing_punct" };
+    if (/\?/.test(t)) return { failRule: "agree_disagree_question_like" };
+    if (/["'`«»]/.test(t)) return { failRule: "agree_disagree_contains_quotes" };
+    if (/\bagree or disagree\b/i.test(t)) {
+      return { failRule: "agree_disagree_framing_leak" };
+    }
+    if (
+      /\b(what do you think|wdyt|sound off|vote below|comment below|let me know|tell us|your thoughts)\b/i.test(
+        t
+      )
+    ) {
+      return { failRule: "agree_disagree_audience_prompt" };
+    }
+    if (
+      /^(do you|would you|are you|is it|can you|should you|don't you|dont you)\b/i.test(
+        t
+      )
+    ) {
+      return { failRule: "agree_disagree_question_stem" };
+    }
+    const words = t.split(/\s+/).filter(Boolean);
+    if (words.length < 3) return { failRule: "agree_disagree_too_short" };
+    if (words.length > 22) return { failRule: "agree_disagree_too_long" };
+    return { failRule: null };
+  };
+
+  /** Punchy opinion for hot_take (renderer adds "Hot take:"). */
+  const validateHotTakeStatement = (
+    text: string
+  ): { failRule: string | null } => {
+    const t = text.trim();
+    if (!t) return { failRule: "slot_1_missing_or_invalid" };
+    if (t.endsWith(",")) return { failRule: "hot_take_trailing_comma" };
+    if (/[.!?]$/.test(t)) return { failRule: "hot_take_trailing_punct" };
+    if (/\?/.test(t)) return { failRule: "hot_take_question_like" };
+    if (/["'`«»]/.test(t)) return { failRule: "hot_take_contains_quotes" };
+    if (/\bhot\s+take\b/i.test(t)) return { failRule: "hot_take_framing_leak" };
+    if (
+      /\b(here'?s my hot take|here is my hot take|my hot take on|unpopular opinion:|hot take on)\b/i.test(
+        t
+      )
+    ) {
+      return { failRule: "hot_take_meta_framing" };
+    }
+    if (/^(what|why|how|when|who|which|what'?s|whats)\b/i.test(t)) {
+      return { failRule: "hot_take_question_stem" };
+    }
+    if (
+      /\b(let me know|sound off|vote below|your thoughts|comment below|tell us)\b/i.test(
+        t
+      )
+    ) {
+      return { failRule: "hot_take_audience_prompt" };
+    }
+    const words = t.split(/\s+/).filter(Boolean);
+    if (words.length < 2) return { failRule: "hot_take_too_short" };
+    if (words.length > 22) return { failRule: "hot_take_too_long" };
+    return { failRule: null };
+  };
+
+  const EMOJI_CHAR_RE = /\p{Extended_Pictographic}/u;
+
+  /** Topic label for emoji_only (renderer adds "Describe … using emojis only."). */
+  const validateEmojiOnlyTopic = (text: string): { failRule: string | null } => {
+    const t = text.trim();
+    if (!t) return { failRule: "slot_1_missing_or_invalid" };
+    if (EMOJI_CHAR_RE.test(t)) return { failRule: "emoji_topic_contains_emoji" };
+    if (!/^[\p{L}\p{N}\s]+$/u.test(t)) return { failRule: "emoji_topic_contains_punct" };
+    if (/\?/.test(t)) return { failRule: "emoji_topic_question_like" };
+    if (/\b(emoji|emojis|describe|using)\b/i.test(t)) {
+      return { failRule: "emoji_topic_banned_instruction_words" };
+    }
+    if (/^(what|why|how|when|who|which)\b/i.test(t)) {
+      return { failRule: "emoji_topic_question_stem" };
+    }
+    const words = t.split(/\s+/).filter(Boolean);
+    if (words.length < 1 || words.length > 5) {
+      return { failRule: "emoji_topic_word_count" };
+    }
+    return { failRule: null };
+  };
+
+  function levenshteinDistance(a: string, b: string): number {
+    const m = a.length;
+    const n = b.length;
+    if (m === 0) return n;
+    if (n === 0) return m;
+    const prevRow = new Array<number>(n + 1);
+    const curRow = new Array<number>(n + 1);
+    for (let j = 0; j <= n; j++) prevRow[j] = j;
+    for (let i = 1; i <= m; i++) {
+      curRow[0] = i;
+      for (let j = 1; j <= n; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        curRow[j] = Math.min(
+          prevRow[j]! + 1,
+          curRow[j - 1]! + 1,
+          prevRow[j - 1]! + cost
+        );
+      }
+      for (let j = 0; j <= n; j++) prevRow[j] = curRow[j]!;
+    }
+    return prevRow[n]!;
+  }
+
+  const TRIVIAL_PICK_ONE_PAIR_KEYS = new Set<string>([
+    "books|movies",
+    "cat|dog",
+    "coffee|tea",
+    "ios|android",
+    "iphone|android",
+    "morning|night",
+    "pizza|burger",
+    "summer|winter",
+    "sweet|salty",
+    "cats|dogs",
+  ]);
+
+  function normalizePickOneLabel(s: string): string {
+    return s.toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  function pickOnePairKey(a: string, b: string): string {
+    const x = normalizePickOneLabel(a);
+    const y = normalizePickOneLabel(b);
+    return x <= y ? `${x}|${y}` : `${y}|${x}`;
+  }
+
+  /** Two option lines for pick_one (after per-slot single-line validation). */
+  const validatePickOneOptions = (
+    top: string,
+    bottom: string
+  ): { failRule: string | null } => {
+    const a = top.trim();
+    const b = bottom.trim();
+    if (!a || !b) return { failRule: "pick_one_options_incomplete" };
+
+    const punctRe = /[.!?,;:'"()[\]{}]/;
+    for (const label of [a, b]) {
+      if (punctRe.test(label)) return { failRule: "pick_one_option_punctuation" };
+      if (/\?/.test(label)) return { failRule: "pick_one_option_question_like" };
+      const words = label.split(/\s+/).filter(Boolean);
+      if (words.length < 1 || words.length > 6) {
+        return { failRule: "pick_one_option_word_count" };
+      }
+    }
+
+    const na = normalizePickOneLabel(a);
+    const nb = normalizePickOneLabel(b);
+    if (na === nb) return { failRule: "pick_one_options_identical" };
+
+    if (TRIVIAL_PICK_ONE_PAIR_KEYS.has(pickOnePairKey(a, b))) {
+      return { failRule: "pick_one_options_trivial_pair" };
+    }
+
+    const maxLen = Math.max(na.length, nb.length);
+    if (maxLen > 0 && maxLen <= 48) {
+      const dist = levenshteinDistance(na, nb);
+      if (dist <= 2 && na.length >= 4 && nb.length >= 4) {
+        return { failRule: "pick_one_options_too_similar" };
+      }
+    }
+
+    const wa = new Set(na.split(/\s+/).filter(Boolean));
+    const wb = new Set(nb.split(/\s+/).filter(Boolean));
+    if (wa.size > 0 && wb.size > 0 && wa.size === wb.size) {
+      let inter = 0;
+      for (const w of wa) if (wb.has(w)) inter++;
+      if (inter === wa.size) return { failRule: "pick_one_options_too_similar" };
+    }
+
+    return { failRule: null };
+  };
+
+  const FILL_GAP_BLANK = "______";
+
+  /** Statement with conceptual blank for fill_gap. */
+  const validateFillGapStatement = (text: string): { failRule: string | null } => {
+    const t = text.trim();
+    if (!t) return { failRule: "slot_1_missing_or_invalid" };
+    if (!t.includes(FILL_GAP_BLANK)) return { failRule: "fill_gap_missing_blank" };
+    if (/\?/.test(t)) return { failRule: "fill_gap_question_like" };
+    if (t.endsWith(",")) return { failRule: "fill_gap_trailing_comma" };
+    const withoutBlanks = t.split(FILL_GAP_BLANK).join(" ").replace(/\s+/g, " ").trim();
+    if (withoutBlanks.length < 6) return { failRule: "fill_gap_too_sparse" };
+    const words = t.split(/\s+/).filter(Boolean);
+    if (words.length > 22) return { failRule: "fill_gap_too_long" };
+    return { failRule: null };
+  };
+
   const getFinishSentenceSlotGuidance = (template: CompatibleTemplate): string => {
     const slot1Role = template.slot_1_role || "keyword";
     return `Slot behavior for engagement_text.finish_sentence (keyword insert):
@@ -1157,6 +1521,221 @@ Names list:
 - bottom_text should be a concrete reward phrase (e.g., "a spa day", "a new car", "a free holiday").
 - Names should match the implied audience where possible.`,
       namesCount: 24,
+    },
+    one_word: {
+      generationContract: `ENGAGEMENT TEXT MEME FORMAT (layout: one_word):
+- There is NO reaction image or video: the card is fixed copy rendered in code on a white background.
+- The visible line is exactly: "Describe [topic] in ONE word." where [topic] is replaced by your top_text only.
+
+OUTPUT CONTRACT (STRICT):
+- top_text = ONLY the topic phrase (what people will describe in one word in the comments).
+- Length: 1–5 words. Short, natural, socially native (e.g. "Monday mornings", "your boss", "startup life").
+- bottom_text MUST be null.
+- No instructions in top_text: do not write "Describe...", "in one word", "ONE word", or questions.
+- No quote marks. No commas. No question marks. No sentence-ending periods.
+- No answers or opinions (not the one-word reply — only the topic hook).
+- Use brand/audience context to pick a topic people will want to react to.
+
+Examples (top_text only):
+Valid: "Mondays", "gym motivation", "customer service", "your boss", "startup life"
+Invalid: "Describe Mondays in one word"
+Invalid: "chaotic and stressful"
+Invalid: "What do you think about Mondays?"
+Invalid: "Monday mornings are exhausting"`,
+      slotGuidance: (template) => `Slot behavior for engagement_text.one_word:
+Slot 1 (top_text):
+- role: ${template.slot_1_role || "topic phrase"}
+- ONLY the topic for: "Describe {top_text} in ONE word."
+- 1–5 words, label-style, not a sentence or question.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}
+- bottom_text must be null.`,
+      templateSpecificGuidance: `Template-specific guidance: one_word
+- Pick one concrete, comment-friendly topic aligned with the audience (pain, ritual, archetype, shared experience).
+- Stay in headline/topic territory — never the commenter's answer.`,
+      validationMode: "one_word_topic",
+    },
+    agree_disagree: {
+      generationContract: `ENGAGEMENT TEXT MEME FORMAT (layout: agree_disagree):
+- Fixed layout: your top_text, then the renderer prints "Agree or disagree?" — you only supply the claim.
+
+STYLE (this layout vs hot_take):
+- Aim for balanced-but-polarising debate: two natural sides, invite yes/no energy without sounding like a rant.
+- STRONGLY prefer patterns like: better than / worse than / still works / doesn't work anymore / overrated / underrated / beats / matters more than / worth it vs not.
+- Comparison or "two camps" beats a pure dump on something — readers should feel they could argue either side.
+
+LENGTH (guidance — obey max_chars from template):
+- Ideal: 45–85 characters. Rarely exceed 100. Usually under ~16 words.
+
+ANTI-GENERIC (both layouts):
+- Never use or echo: "The truth is", "Here's the thing", "Let that sink in", "In today's fast-paced world", "Pro tip", "Hot tip", thought-leader throat-clearing.
+- Avoid abstract nouns alone ("success", "growth", "marketing", "branding") — tie to a concrete anchor: a tool, meeting type, channel, customer moment, creator workflow, etc.
+
+DISCOURAGED here:
+- Ranty absolutes with no second side ("everything is broken") unless still clearly debatable.
+- Soft question vibe, poll tone, audience instructions.
+- Framing text: "agree or disagree", "vote below", etc.
+
+OUTPUT CONTRACT (STRICT):
+- top_text = one debatable claim, single line in JSON, no newlines.
+- bottom_text MUST be null.
+- No hate, harassment, or extreme political bait. Brand-safe spice only.
+- Avoid ending with . ! ? when possible.
+
+Examples (top_text only):
+Valid: "Deep work beats open-plan for real progress"
+Valid: "Cold DMs still work if they're personal"
+Valid: "LinkedIn carousels are overrated for most SMBs"
+Invalid: "Agree or disagree: remote work wins"
+Invalid: "The truth is marketing is hard"
+Invalid: "What do you think about meetings?"`,
+      slotGuidance: (template) => `Slot behavior for engagement_text.agree_disagree:
+Slot 1 (top_text):
+- role: ${template.slot_1_role || "debatable two-camps claim"}
+- Debate-friendly: comparison, still/never, overrated/underrated, or better/worse — not the same contrarian-rant mode as hot_take.
+- Ideal ~45–85 characters (~16 words max usually). Hard ceiling: max_chars ${template.slot_1_max_chars}.
+- At least one concrete anchor when possible.
+- bottom_text must be null.`,
+      templateSpecificGuidance: `Template-specific guidance: agree_disagree
+- Picture someone typing "hard agree" vs "absolutely not" — that's the split you want.
+- Skip LinkedIn wisdom cosplay; write like a real thread where people pick sides.`,
+      validationMode: "agree_disagree_statement",
+    },
+    hot_take: {
+      generationContract: `ENGAGEMENT TEXT MEME FORMAT (layout: hot_take):
+- Renderer prints "Hot take:" then your top_text — you only supply the line.
+
+STYLE (this layout vs agree_disagree):
+- Stronger, punchier, more contrarian than agree_disagree — pattern-interrupt, timeline energy.
+- STRONGLY prefer patterns like: is overrated / is a waste of time / nobody cares about / doesn't matter / everyone pretends / is lying / is dead / stop pretending.
+- NOT balanced debate copy: avoid the same "X is better than Y for Z" structure you would use for agree_disagree unless it is clearly edgy and one-sided.
+
+LENGTH (guidance — obey max_chars from template):
+- Ideal: 35–75 characters. Rarely exceed 90. Usually under ~14 words.
+
+ANTI-GENERIC (both layouts):
+- Never: "The truth is", "Here's the thing", "Let that sink in", "In today's fast-paced world", "Pro tip", "Hot tip", corporate mission-speak.
+- Anchor in something specific: a ritual, tool, audience behaviour, creator reality — not vague "business" abstraction.
+
+DISCOURAGED here:
+- Balanced two-sides debate phrasing (save for agree_disagree).
+- Poll-like or soft tone. Meta framing ("hot take:", "unpopular opinion:").
+- Framing text containing "hot take".
+
+OUTPUT CONTRACT (STRICT):
+- top_text = one bold statement, single line in JSON, no newlines.
+- bottom_text MUST be null.
+- No questions or audience instructions. Brand-safe, non-abusive.
+- Avoid trailing . ! ? when possible.
+
+Examples (top_text only):
+Valid: "Nobody reads your launch post twice"
+Valid: "Your funnel is fine your hook is boring"
+Valid: "Weekly status meetings are theatre"
+Invalid: "Remote work is better than the office for focus" (fits agree_disagree better)
+Invalid: "Hot take: email is dead"
+Invalid: "Here's the thing about content"`,
+      slotGuidance: (template) => `Slot behavior for engagement_text.hot_take:
+Slot 1 (top_text):
+- role: ${template.slot_1_role || "contrarian punchy statement"}
+- Sharper than agree_disagree: waste of time, overrated, doesn't matter, everyone pretends — not balanced debate.
+- Ideal ~35–75 characters (~14 words max usually). Hard ceiling: max_chars ${template.slot_1_max_chars}.
+- Concrete anchor preferred; no LinkedIn filler.
+- bottom_text must be null.`,
+      templateSpecificGuidance: `Template-specific guidance: hot_take
+- If it could drop into an agree/disagree card without changing tone, rewrite hotter or more specific.
+- Write like someone posting before they second-guess — still safe, never cruel.`,
+      validationMode: "hot_take_statement",
+    },
+    emoji_only: {
+      generationContract: `ENGAGEMENT TEXT MEME FORMAT (layout: emoji_only):
+- Fixed on-card copy: "Describe [topic] using emojis only." — you only output the topic in top_text.
+- top_text = a short plain topic people can answer in emoji (NOT the emojis themselves).
+
+OUTPUT CONTRACT (STRICT):
+- 1–5 words, relatable and clear.
+- Letters, numbers, and spaces only — no punctuation, no emojis in JSON.
+- No questions. No instructions.
+- Do NOT use the words "emoji", "emojis", "describe", or "using" in top_text.
+- bottom_text MUST be null.
+
+Examples (top_text only):
+Valid: "this week at work", "your onboarding experience", "Q1 in one vibe"
+Invalid: "describe your week" (banned words)
+Invalid: "🙂 week" (emoji in slot)
+Invalid: "How was your week?"`,
+      slotGuidance: (template) => `Slot behavior for engagement_text.emoji_only:
+Slot 1 (top_text):
+- role: ${template.slot_1_role || "topic"}
+- ONLY the topic for: "Describe {top_text} using emojis only."
+- 1–5 words, no emojis, no punctuation, no questions, no instruction words.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}
+- bottom_text must be null.`,
+      templateSpecificGuidance: `Template-specific guidance: emoji_only
+- Pick a slice-of-life or niche hook the audience can express in emoji without explaining.
+- Never echo the card's framing ("describe", "emoji", "using").`,
+      validationMode: "emoji_topic",
+    },
+    pick_one: {
+      generationContract: `ENGAGEMENT TEXT MEME FORMAT (layout: pick_one):
+- Renderer prints "Pick one:" then top_text (option A) then bottom_text (option B).
+
+OUTPUT CONTRACT (STRICT):
+- Two contrasting options that feel like a real trade-off for this audience.
+- Each option: 1–6 words, single line, no punctuation, no questions.
+- Avoid lazy generic pairs (coffee vs tea, cat vs dog, summer vs winter, etc.).
+- Meaningful or difficult choices beat interchangeable lifestyle toggles.
+
+Examples:
+Valid top_text / bottom_text:
+- "Deep work blocks" / "Always-on Slack"
+- "Ship the MVP" / "Polish for another month"
+Invalid: "Coffee" / "Tea"
+Invalid: "Option A" / "Option B"`,
+      slotGuidance: (template) => `Slot behavior for engagement_text.pick_one:
+Slot 1 (top_text):
+- role: ${template.slot_1_role || "option A"}
+- First choice line (no punctuation).
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}
+
+Slot 2 (bottom_text):
+- role: ${template.slot_2_role || "option B"}
+- Second choice line (no punctuation).
+- max_chars: ${template.slot_2_max_chars}
+- max_lines: ${template.slot_2_max_lines}`,
+      templateSpecificGuidance: `Template-specific guidance: pick_one
+- Force a stance: both options should feel costly to give up.
+- Keep labels parallel in tone (both nouns, both verb phrases, etc.).`,
+      validationMode: "pick_one_options",
+    },
+    fill_gap: {
+      generationContract: `ENGAGEMENT TEXT MEME FORMAT (layout: fill_gap):
+- top_text is one line shown on the card; it MUST include the exact blank token ______ (six underscores).
+- Insightful conceptual completion prompts — frameworks, equations, principles — not jokes or questions.
+
+OUTPUT CONTRACT (STRICT):
+- Include ______ exactly once is ideal; at minimum the substring ______ must appear once.
+- No question marks. Do not end with a comma.
+- Not a joke punchline; not generic filler ("life is ______").
+- bottom_text MUST be null.
+
+Examples (top_text):
+Valid: "Success = consistency + ______"
+Valid: "Retention dies without ______"
+Invalid: "Fill in the blank: ______"`,
+      slotGuidance: (template) => `Slot behavior for engagement_text.fill_gap:
+Slot 1 (top_text):
+- role: ${template.slot_1_role || "statement with blank"}
+- One line including ______ as the gap.
+- max_chars: ${template.slot_1_max_chars}
+- max_lines: ${template.slot_1_max_lines}
+- bottom_text must be null.`,
+      templateSpecificGuidance: `Template-specific guidance: fill_gap
+- Aim for operator/creator insight: something people want to complete in the comments.
+- Avoid meme-y randomness; keep it sharp and on-brand.`,
+      validationMode: "fill_gap_statement",
     },
   };
 
@@ -1320,12 +1899,162 @@ Slot 1:
 - Do not include any prose before or after the JSON object.`;
     }
 
+    if (template.slug === "wow-doge") {
+      const wowHint = getWowDogeRetrySupplement(previousFailureRule);
+      if (wowHint) {
+        return `Retry correction:\n${wowHint}`;
+      }
+    }
+
     if (previousFailureRule === "one_slot_bottom_text_not_null") {
       return `Retry correction:
 - This template only supports one text slot.
 - bottom_text MUST be null.
 - Put the full meme idea into top_text only.`;
     }
+
+    if (previousFailureRule === "one_word_trailing_comma") {
+      return `Retry correction:
+- top_text must not end with a comma.
+- Return a clean topic phrase only.`;
+    }
+
+    if (previousFailureRule === "one_word_contains_comma") {
+      return `Retry correction:
+- top_text must not contain commas (no multi-clause phrases).
+- Use a short topic label only (1–5 words).`;
+    }
+
+    if (previousFailureRule === "one_word_contains_quotes") {
+      return `Retry correction:
+- top_text must not contain quote marks.
+- Return the topic phrase in plain text only.`;
+    }
+
+    if (previousFailureRule === "one_word_question_like") {
+      return `Retry correction:
+- top_text must not be a question.
+- Return a short topic label only (e.g. "Mondays", "your boss").`;
+    }
+
+    if (previousFailureRule === "one_word_instruction_filler") {
+      return `Retry correction:
+- top_text must NOT include instructional filler like "describe", "in one word", or "one word".
+- The card already says that; you only supply the topic.`;
+    }
+
+    if (previousFailureRule === "one_word_question_stem") {
+      return `Retry correction:
+- top_text must not start with question words (what, why, how, when, who, which).
+- Use a topic label only.`;
+    }
+
+    if (previousFailureRule === "one_word_word_count") {
+      return `Retry correction:
+- top_text must be 1–5 words only.
+- Shorter topic hooks work best for "Describe [topic] in ONE word."`;
+    }
+
+    if (previousFailureRule === "one_word_sentence_like") {
+      return `Retry correction:
+- top_text must not read like a sentence, opinion, or answer.
+- Use a compact topic only (what people react to), not how they feel about it.`;
+    }
+
+    const engagementOpinionRetries: Partial<Record<string, string>> = {
+      agree_disagree_trailing_comma: `Retry correction:
+- top_text must not end with a comma.
+- Return a standalone opinion statement only.`,
+      agree_disagree_trailing_punct: `Retry correction:
+- Do not end top_text with . ! or ? — finish on a word so it reads clean on the card.`,
+      agree_disagree_question_like: `Retry correction:
+- top_text must not be a question.
+- Write a flat statement people can agree or disagree with.`,
+      agree_disagree_contains_quotes: `Retry correction:
+- Remove quote marks from top_text.
+- Plain opinion text only.`,
+      agree_disagree_framing_leak: `Retry correction:
+- Do NOT include "agree or disagree" (or variants) in top_text.
+- The card adds that line automatically.`,
+      agree_disagree_audience_prompt: `Retry correction:
+- No audience prompts ("what do you think", "sound off", "let me know").
+- Only the opinion statement.`,
+      agree_disagree_question_stem: `Retry correction:
+- Do not start with "Do you", "Would you", "Is it", etc.
+- State the take directly.`,
+      agree_disagree_too_short: `Retry correction:
+- top_text needs at least ~3 words — a full debatable claim (comparison, still works, overrated/underrated, etc.).
+- Aim for ~45–85 characters when possible.`,
+      agree_disagree_too_long: `Retry correction:
+- Shorten top_text — agree/disagree lines read best ~45–85 characters, rarely over 100 (~16 words).
+- Stay under the character limit.`,
+      hot_take_trailing_comma: `Retry correction:
+- top_text must not end with a comma.`,
+      hot_take_trailing_punct: `Retry correction:
+- Do not end top_text with . ! or ? — end on a strong final word.`,
+      hot_take_question_like: `Retry correction:
+- Hot takes must be statements, not questions.`,
+      hot_take_contains_quotes: `Retry correction:
+- Remove quote marks from top_text.`,
+      hot_take_framing_leak: `Retry correction:
+- Do NOT include the phrase "hot take" in top_text.
+- The header is added by the renderer.`,
+      hot_take_meta_framing: `Retry correction:
+- No meta setup ("here is my hot take", "unpopular opinion:").
+- Only the punchy opinion line.`,
+      hot_take_question_stem: `Retry correction:
+- Do not start with question words (what, why, how, etc.).
+- State the opinion outright.`,
+      hot_take_audience_prompt: `Retry correction:
+- No instructions to the audience ("let me know", "sound off").
+- Statement only.`,
+      hot_take_too_short: `Retry correction:
+- top_text needs at least 2 words — make it a punchy contrarian line (waste of time, overrated, doesn't matter, etc.).`,
+      hot_take_too_long: `Retry correction:
+- Tighten top_text — hot takes read best ~35–75 characters, rarely over 90 (~14 words).
+- Stay under the character limit.`,
+      emoji_topic_contains_emoji: `Retry correction:
+- top_text must be plain words only — no emojis (comments will supply emojis).`,
+      emoji_topic_contains_punct: `Retry correction:
+- top_text must use letters, numbers, and spaces only — no punctuation.`,
+      emoji_topic_question_like: `Retry correction:
+- top_text must not be a question — use a short topic label only.`,
+      emoji_topic_question_stem: `Retry correction:
+- Do not start top_text with question words (what, why, how, etc.).
+- Use a compact topic phrase only.`,
+      emoji_topic_banned_instruction_words: `Retry correction:
+- Do NOT include "emoji", "describe", or "using" in top_text — the card adds that framing.`,
+      emoji_topic_word_count: `Retry correction:
+- top_text must be 1–5 words — a tight topic hook only.`,
+      pick_one_options_incomplete: `Retry correction:
+- pick_one requires BOTH top_text (option A) and bottom_text (option B).
+- Each must be a short label (1–6 words), no punctuation.`,
+      pick_one_option_punctuation: `Retry correction:
+- Options must not contain punctuation — plain words only.`,
+      pick_one_option_question_like: `Retry correction:
+- Options must be statements/labels, not questions.`,
+      pick_one_option_word_count: `Retry correction:
+- Each option must be 1–6 words.`,
+      pick_one_options_identical: `Retry correction:
+- Options must be clearly different — rewrite one side with a contrasting angle.`,
+      pick_one_options_trivial_pair: `Retry correction:
+- Avoid cliché generic pairs (coffee/tea, cat/dog, etc.).
+- Choose a meaningful trade-off for this audience.`,
+      pick_one_options_too_similar: `Retry correction:
+- Options read as duplicates or near-duplicates — widen the contrast while keeping both plausible.`,
+      fill_gap_missing_blank: `Retry correction:
+- top_text MUST include the exact blank token ______ (six underscores).`,
+      fill_gap_question_like: `Retry correction:
+- fill_gap lines must not be questions — use a conceptual statement with ______.`,
+      fill_gap_trailing_comma: `Retry correction:
+- Do not end top_text with a comma.`,
+      fill_gap_too_sparse: `Retry correction:
+- Add more conceptual content around the ______ blank — not just the blank alone.`,
+      fill_gap_too_long: `Retry correction:
+- Shorten top_text — keep it one sharp line with ______.`,
+    };
+    const opinionRetryHit = engagementOpinionRetries[previousFailureRule];
+    if (opinionRetryHit) return opinionRetryHit;
 
     if (previousFailureRule === "title_missing_or_invalid") {
       return `Retry correction:
@@ -1394,7 +2123,8 @@ ${getTemplateTypeRetryShape()}`;
     }
 
     if (previousFailureRule.endsWith("_over_max_chars") && slotLabel && slotMaxChars) {
-      if (getEngagementLayoutConfig(template)?.validationMode === "keyword_phrase") {
+      const vMode = getEngagementLayoutConfig(template)?.validationMode;
+      if (vMode === "keyword_phrase") {
         return `Retry correction:
 - ${slotLabel} should be a keyword/phrase only that fits: "I hate [keyword] because".
 - Do NOT include the words "I hate" or "because" in ${slotLabel}.
@@ -1402,6 +2132,37 @@ ${getTemplateTypeRetryShape()}`;
 - Prefer 2–4 word niche noun phrases (no clauses).
 - Avoid “people who / clients who / members who / those who” constructions.
 - Prefer shorter, tighter nouns + modifiers (2–4 words total).`;
+      }
+      if (vMode === "one_word_topic") {
+        return `Retry correction:
+- ${slotLabel} must be ONLY a short topic for: "Describe [topic] in ONE word."
+- Keep ${slotLabel} at or under ${slotMaxChars} characters.
+- Use 1–5 words, no quotes, no commas, no questions, no instructions.`;
+      }
+      if (vMode === "agree_disagree_statement") {
+        return `Retry correction:
+- ${slotLabel} must be a two-camps debatable claim (comparison / still works / overrated) — not a hot-take rant.
+- Keep ${slotLabel} at or under ${slotMaxChars} characters; aim ~45–85.
+- No questions, no "agree or disagree" phrasing, no thought-leader filler.`;
+      }
+      if (vMode === "hot_take_statement") {
+        return `Retry correction:
+- ${slotLabel} must be a sharp contrarian line — bolder than agree/disagree (renderer adds "Hot take:").
+- Keep ${slotLabel} at or under ${slotMaxChars} characters; aim ~35–75.
+- No "hot take" wording, no balanced debate phrasing, no LinkedIn filler.`;
+      }
+      if (vMode === "emoji_topic") {
+        return `Retry correction:
+- ${slotLabel} must be ONLY a short topic for: "Describe [topic] using emojis only."
+- Keep ${slotLabel} at or under ${slotMaxChars} characters; 1–5 words, no emojis, no punctuation, no banned words.`;
+      }
+      if (vMode === "pick_one_options") {
+        return `Retry correction:
+- For pick_one, keep each option at or under its max_chars; 1–6 words, no punctuation, meaningful contrast.`;
+      }
+      if (vMode === "fill_gap_statement") {
+        return `Retry correction:
+- ${slotLabel} must stay at or under ${slotMaxChars} characters and include ______ with real conceptual content.`;
       }
 
       const strictTightMode =
@@ -1425,12 +2186,43 @@ ${getTemplateTypeRetryShape()}`;
       slotLabel &&
       slotMaxChars
     ) {
-      if (getEngagementLayoutConfig(template)?.validationMode === "keyword_phrase") {
+      const vModeLoose = getEngagementLayoutConfig(template)?.validationMode;
+      if (vModeLoose === "keyword_phrase") {
         return `Retry correction:
 - ${slotLabel} is allowed to be a short keyword phrase (not a sentence-style caption).
 - ${slotLabel} must fit the "I hate [keyword] because" structure (keyword only).
 - Do NOT include "I hate" or "because" in ${slotLabel}.
 - Keep ${slotLabel} at or under ${slotMaxChars} characters.`;
+      }
+      if (vModeLoose === "one_word_topic") {
+        return `Retry correction:
+- ${slotLabel} should be a short topic label (1–5 words), not a sentence.
+- It will appear inside: "Describe {topic} in ONE word."
+- Do NOT include "describe", "in one word", quotes, commas, or questions.`;
+      }
+      if (vModeLoose === "agree_disagree_statement") {
+        return `Retry correction:
+- ${slotLabel} should read as a complete debatable claim (two sides), not a fragment.
+- Aim ~45–85 characters; avoid dangling "and", "but", "so" at the end.`;
+      }
+      if (vModeLoose === "hot_take_statement") {
+        return `Retry correction:
+- ${slotLabel} should read as a complete punchy take, not a cut-off fragment.
+- Aim ~35–75 characters; avoid balanced "X is better than Y" unless it is clearly edgy.`;
+      }
+      if (vModeLoose === "emoji_topic") {
+        return `Retry correction:
+- ${slotLabel} should be a complete topic label (1–5 words), not a fragment.
+- No emojis, punctuation, or instruction words.`;
+      }
+      if (vModeLoose === "pick_one_options") {
+        return `Retry correction:
+- Each option should read as a complete short label, not a cut-off fragment.
+- Keep contrast obvious and avoid generic pairs.`;
+      }
+      if (vModeLoose === "fill_gap_statement") {
+        return `Retry correction:
+- ${slotLabel} should be one complete conceptual line including ______, not a fragment.`;
       }
 
       return `Retry correction:
@@ -1495,8 +2287,17 @@ ${getTemplateTypeRetryShape()}`;
   const allowShortLabelValidationMode = (
     template: CompatibleTemplate
   ): boolean => {
-    // Engagement keyword-phrase layouts intentionally bypass sentence-fragment heuristics.
-    if (getEngagementLayoutConfig(template)?.validationMode === "keyword_phrase") {
+    // Engagement keyword/topic layouts intentionally bypass sentence-fragment heuristics.
+    const mode = getEngagementLayoutConfig(template)?.validationMode;
+    if (
+      mode === "keyword_phrase" ||
+      mode === "one_word_topic" ||
+      mode === "agree_disagree_statement" ||
+      mode === "hot_take_statement" ||
+      mode === "emoji_topic" ||
+      mode === "pick_one_options" ||
+      mode === "fill_gap_statement"
+    ) {
       return true;
     }
 
@@ -1957,6 +2758,7 @@ ${getTemplateTypeRetryShape()}`;
           bottom_text: string | null;
           slot_3_text: string | null;
           names?: string[];
+          wowDogePhrases?: string[];
         };
         failureRule: null;
       }
@@ -2004,6 +2806,106 @@ IMPORTANT DAY WRITING RULES
         slug: template.slug,
         importantDayPromptBlock: variantPromptGuidance,
       });
+    }
+
+    if (isWowDogeTemplateSlug(template.slug)) {
+      const englishVariantNote = englishVariantPromptInstruction(
+        resolveEffectiveEnglishVariant(profile.english_variant)
+      );
+      const userContent = buildWowDogeUserPromptBlock({
+        brand_name,
+        what_you_do,
+        audience,
+        country,
+        conversationContext: generationContext.conversationContext ?? null,
+        workspaceSummary: generationContext.workspaceContextSummary ?? null,
+        englishVariantNote,
+        variantBlock: variantPromptGuidance,
+        retrySupplement: retryCorrectiveGuidance,
+      });
+
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          temperature: 0.65,
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are an expert at doge-style meme labels. Return only JSON with keys title and phrases. No markdown. No extra keys.",
+            },
+            { role: "user", content: userContent },
+          ],
+        }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        console.error("[meme-gen] OpenAI error (wow-doge)", {
+          template: template.slug,
+          attempt,
+          status: res.status,
+          text,
+        });
+        return { result: null, failureRule: "openai_error" };
+      }
+
+      const json = (await res.json()) as any;
+      const content = json?.choices?.[0]?.message?.content ?? "{}";
+      const parsed = safeJsonParse(String(content));
+      if (!parsed || typeof parsed !== "object") {
+        console.error("[meme-gen] Validation failed (json_parse_failed) wow-doge", {
+          template: template.slug,
+          attempt,
+          content,
+        });
+        return { result: null, failureRule: "json_parse_failed" };
+      }
+
+      const p = parsed as Record<string, unknown>;
+      const titleValidation = validateTitle(p.title);
+      const phraseValidation = validateWowDogePhrases(p.phrases);
+
+      if (!titleValidation.value) {
+        console.error("[meme-gen] wow-doge title validation failed", {
+          template: template.slug,
+          rule: titleValidation.failRule,
+        });
+        return {
+          result: null,
+          failureRule: titleValidation.failRule ?? "title_missing_or_invalid",
+        };
+      }
+
+      if (!phraseValidation.phrases) {
+        console.error("[meme-gen] wow-doge phrase validation failed", {
+          template: template.slug,
+          rule: phraseValidation.failRule,
+        });
+        return {
+          result: null,
+          failureRule: phraseValidation.failRule ?? "wow_doge_phrases_count",
+        };
+      }
+
+      const phrases = phraseValidation.phrases;
+      const topJoin = phrases.join(" · ");
+      return {
+        result: {
+          title: titleValidation.value,
+          top_text: topJoin,
+          bottom_text: null,
+          slot_3_text: null,
+          wowDogePhrases: phrases,
+        },
+        failureRule: null,
+      };
     }
 
     const { topIdeal, bottomIdeal } = getIdealSlotTargets(template, attempt);
@@ -2156,11 +3058,11 @@ ${
     ? `- For square_text: top_text must read as a finished standalone thought on a plain text card (not a teaser line for an image). Avoid trailing commas that imply more is coming.
 `
     : template.template_family === "engagement_text"
-      ? getEngagementLayoutKey(template) === "birthday_names_list"
-        ? `- For engagement_text.birthday_names_list: top_text and bottom_text are required headline slots for "These {top_text} deserve {bottom_text} for their birthday".
-- names MUST be present as an array with EXACTLY ${namesCount ?? 24} first names.
-- names must contain no duplicates, no surnames, no numbering, and no bullets.`
-        : `- For engagement_text.finish_sentence: top_text MUST be ONLY the keyword/phrase inserted into "I hate [keyword] because". It must NOT contain "I hate" or "because". bottom_text MUST be null.`
+      ? getEngagementHardConstraintsBlock(
+          engagementLayoutKey,
+          template,
+          namesCount
+        )
       : ""
 }- top_text MUST be <= ${template.slot_1_max_chars} characters and complete (no mid-word cut-offs).
 - top_text should ideally be <= ${topIdeal} characters.
@@ -2173,15 +3075,12 @@ ${structuredThreeSlotDebateMode
   : ""}
 - Do not include markdown, HTML, code blocks, or newline characters.
 - Do not include disallowed/unsafe content (hate, sexual, illegal, harassment, personal data).
+- Never end top_text, bottom_text, or any slot text (slot_1_text, slot_2_text, slot_3_text) with a trailing comma; finished lines should not look cut off.
 
 Quality gate before return:
-${template.template_family === "engagement_text" ? getEngagementLayoutKey(template) === "birthday_names_list" ? `- Does the headline read naturally: "These {top_text} deserve {bottom_text} for their birthday"?
-- Is names[] exactly ${namesCount ?? 24} first names, unique, no surnames?
-- Do names match the audience/context where appropriate?
-- If not, rewrite before returning JSON.` : `- Is top_text niche-specific and likely to trigger comments when plugged into: "I hate [keyword] because"?
-- Does top_text avoid generic category words (e.g. marketing, business, fitness, success)?
-- Does top_text NOT include "I hate" or "because"?
-- If not, rewrite before returning JSON.` : structuredThreeSlotDebateMode ? `- Does slot_2_text read as a compact subject label (1-3 words ideally; 4 only if truly necessary), not a sentence/question/clause?
+${template.template_family === "engagement_text"
+  ? getEngagementQualityGateBlock(engagementLayoutKey, namesCount)
+  : structuredThreeSlotDebateMode ? `- Does slot_2_text read as a compact subject label (1-3 words ideally; 4 only if truly necessary), not a sentence/question/clause?
 - Do slot_1_text and slot_3_text clearly contrast as two different takes on that subject?
 - Are all slots concise and scannable on-image?
 - Does the output avoid "when you..." style setup lines?
@@ -2390,6 +3289,31 @@ ${isThreeSlot
       return { result: null, failureRule: rule ?? "validation_failed" };
     }
 
+    if (template.template_family === "engagement_text") {
+      const layoutForTop = getEngagementLayoutKey(template);
+      let layoutTopFail: string | null = null;
+      if (layoutForTop === ENGAGEMENT_LAYOUT_ONE_WORD) {
+        layoutTopFail = validateOneWordTopicPhrase(topValidation.value).failRule;
+      } else if (layoutForTop === ENGAGEMENT_LAYOUT_AGREE_DISAGREE) {
+        layoutTopFail = validateAgreeDisagreeStatement(topValidation.value).failRule;
+      } else if (layoutForTop === ENGAGEMENT_LAYOUT_HOT_TAKE) {
+        layoutTopFail = validateHotTakeStatement(topValidation.value).failRule;
+      } else if (layoutForTop === ENGAGEMENT_LAYOUT_EMOJI_ONLY) {
+        layoutTopFail = validateEmojiOnlyTopic(topValidation.value).failRule;
+      } else if (layoutForTop === ENGAGEMENT_LAYOUT_FILL_GAP) {
+        layoutTopFail = validateFillGapStatement(topValidation.value).failRule;
+      }
+      if (layoutTopFail) {
+        console.error("[meme-gen] Engagement layout-specific top_text validation failed", {
+          template: `${template.template_name} (${template.slug})`,
+          layout: layoutForTop,
+          rule: layoutTopFail,
+          top_text: topValidation.value,
+        });
+        return { result: null, failureRule: layoutTopFail };
+      }
+    }
+
     if ((template.isTwoSlot || isThreeSlot) && !bottomValidation.value) {
       console.error("[meme-gen] Validation failed", {
         template: `${template.template_name} (${template.slug})`,
@@ -2408,6 +3332,27 @@ ${isThreeSlot
         result: null,
         failureRule: bottomValidation.failRule ?? "validation_failed",
       };
+    }
+
+    if (
+      template.template_family === "engagement_text" &&
+      getEngagementLayoutKey(template) === ENGAGEMENT_LAYOUT_PICK_ONE &&
+      topValidation.value &&
+      bottomValidation.value
+    ) {
+      const pickOneFail = validatePickOneOptions(
+        topValidation.value,
+        bottomValidation.value
+      ).failRule;
+      if (pickOneFail) {
+        console.error("[meme-gen] Engagement pick_one pair validation failed", {
+          template: `${template.template_name} (${template.slug})`,
+          rule: pickOneFail,
+          top_text: topValidation.value,
+          bottom_text: bottomValidation.value,
+        });
+        return { result: null, failureRule: pickOneFail };
+      }
     }
 
     if (isThreeSlot && structuredThreeSlotDebateMode && bottomValidation.value) {
@@ -2549,6 +3494,7 @@ ${isThreeSlot
           bottom_text: string | null;
           slot_3_text: string | null;
           names?: string[];
+          wowDogePhrases?: string[];
         }
       | null = null;
     let previousFailureRule: string | null = null;
@@ -2618,6 +3564,8 @@ ${isThreeSlot
       continue;
     }
 
+    generated = sanitizeGeneratedMemeTextFields(generated);
+
     let imageUrl: string | null = null;
     try {
       if (template.template_family === "square_text") {
@@ -2651,6 +3599,7 @@ ${isThreeSlot
           bottomText: generated.bottom_text,
           names: generated.names,
           template,
+          engagementStyle: "classic",
         });
 
         const objectPath = `generated_memes/${
@@ -2732,13 +3681,21 @@ ${isThreeSlot
           const arrayBuffer = await (baseBlob as any).arrayBuffer();
           const baseImageBuffer = Buffer.from(arrayBuffer);
 
-          const pngBuffer = await renderMemePNGFromTemplate({
-            baseImageBuffer,
-            template,
-            topText: generated.top_text,
-            bottomText: generated.bottom_text,
-            slot_3_text: generated.slot_3_text ?? undefined,
-          });
+          const pngBuffer =
+            isWowDogeTemplateSlug(template.slug) &&
+            Array.isArray(generated.wowDogePhrases) &&
+            generated.wowDogePhrases.length >= 4
+              ? await renderWowDogeMemePng({
+                  baseImageBuffer,
+                  phrases: generated.wowDogePhrases,
+                })
+              : await renderMemePNGFromTemplate({
+                  baseImageBuffer,
+                  template,
+                  topText: generated.top_text,
+                  bottomText: generated.bottom_text,
+                  slot_3_text: generated.slot_3_text ?? undefined,
+                });
 
           const objectPath = `generated_memes/${workspaceContext?.storagePathNamespace ?? actorUserId ?? "anonymous"}/${template.template_id}/${randomUUID()}.png`;
 
@@ -2791,6 +3748,20 @@ ${isThreeSlot
       ...(contentPackMeta ?? {}),
       ...(template.template_family === "engagement_text" && Array.isArray(generated.names)
         ? { engagement_names: generated.names }
+        : {}),
+      ...(template.template_family === "engagement_text"
+        ? { engagement_style: "classic" as const }
+        : {}),
+      ...(outputFormat === "square_text"
+        ? { content_template_family: template.template_family }
+        : {}),
+      ...(isWowDogeTemplateSlug(template.slug) &&
+      Array.isArray(generated.wowDogePhrases) &&
+      generated.wowDogePhrases.length > 0
+        ? {
+            phrases: generated.wowDogePhrases,
+            overlay_variant: "wow_doge" as const,
+          }
         : {}),
       selection_strategy:
         outputFormat === "square_text"

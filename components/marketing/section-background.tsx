@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 type Variant =
@@ -15,19 +16,40 @@ interface SectionBackgroundProps {
   variant: Variant;
   className?: string;
   children?: React.ReactNode;
+  /** When set with variant `hero`, full-bleed cover image behind content (homepage). */
+  heroBackgroundSrc?: string | null;
 }
 
-export function SectionBackground({ variant, className, children }: SectionBackgroundProps) {
+export function SectionBackground({
+  variant,
+  className,
+  children,
+  heroBackgroundSrc,
+}: SectionBackgroundProps) {
+  const heroPhoto = variant === "hero" && heroBackgroundSrc;
+
   return (
     <div
       className={cn("absolute inset-0 overflow-hidden", className)}
       aria-hidden
     >
+      {heroPhoto ? (
+        <Image
+          src={heroBackgroundSrc}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center"
+        />
+      ) : null}
       {/* Base gradient per variant */}
       <div
         className={cn(
           "absolute inset-0",
-          variant === "hero" && "bg-gradient-to-b from-sky-200/85 via-sky-100/90 to-sky-50/95",
+          variant === "hero" &&
+            !heroPhoto &&
+            "bg-gradient-to-b from-sky-200/85 via-sky-100/90 to-sky-50/95",
           variant === "gallery" && "bg-gradient-to-b from-stone-50/98 to-amber-50/30",
           variant === "features" && "bg-gradient-to-b from-emerald-200/85 via-green-100/90 to-emerald-50/95",
           variant === "founder" && "bg-gradient-to-b from-orange-50/30 via-amber-50/20 to-white/95",
@@ -37,7 +59,7 @@ export function SectionBackground({ variant, className, children }: SectionBackg
         )}
       />
       {/* Decorative blurred shapes */}
-      {variant === "hero" && (
+      {variant === "hero" && !heroPhoto && (
         <>
           <div className="absolute -left-20 top-1/4 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
           <div className="absolute right-0 top-0 h-96 w-96 rounded-full bg-sky-200/45 blur-3xl" />

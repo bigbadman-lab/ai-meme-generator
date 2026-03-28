@@ -215,7 +215,6 @@ export async function runGenerationPlan(params: {
     metadata.template_family_preference === "engagement_text"
       ? "engagement_text"
       : null;
-
   console.log("[workspace-gen] runGenerationPlan payload", {
     outputFormat: job.output_format ?? "square_text",
     templateFamilyPreference,

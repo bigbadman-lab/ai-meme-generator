@@ -63,6 +63,35 @@ small {
   }
 }
 
+/* Hero H1 "meme" — duotone: vivid fill + thin light outline (no box; works on busy photo BG) */
+.hero-h1-meme-duotone {
+  font-family: var(--font-courier-prime), ui-monospace, monospace;
+  font-weight: 700;
+  position: relative;
+  display: inline-block;
+  color: #0284c7;
+  -webkit-text-fill-color: #0284c7;
+  -webkit-text-stroke: 1.25px rgba(255, 255, 255, 0.96);
+  paint-order: stroke fill;
+  text-shadow:
+    0 0.06em 0.1em rgba(15, 23, 42, 0.14),
+    0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+@supports not (-webkit-text-stroke: 1px transparent) {
+  .hero-h1-meme-duotone {
+    -webkit-text-stroke: 0;
+    color: #0284c7;
+    -webkit-text-fill-color: #0284c7;
+    text-shadow:
+      -1px -1px 0 rgba(255, 255, 255, 0.95),
+      1px -1px 0 rgba(255, 255, 255, 0.95),
+      -1px 1px 0 rgba(255, 255, 255, 0.95),
+      1px 1px 0 rgba(255, 255, 255, 0.95),
+      0 0.08em 0.14em rgba(15, 23, 42, 0.12);
+  }
+}
+
 /* Hero heading word animations */
 @media (prefers-reduced-motion: no-preference) {
   .hero-word-memes {

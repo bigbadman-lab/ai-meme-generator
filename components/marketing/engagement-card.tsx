@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Script from "next/script";
 import { Heart, Share2, MessageCircle, Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CountUp } from "./count-up";
@@ -44,30 +43,19 @@ export function EngagementCard({ className }: { className?: string }) {
       )}
       aria-label="Social engagement preview"
     >
-      {/* Meme preview area - Tenor GIF embed */}
-      <div className="overflow-hidden rounded-xl border border-[var(--canvas-border)] bg-stone-50 w-full aspect-[0.84375]">
-        <div
-          className="tenor-gif-embed w-full h-full [&_a]:hidden"
-          data-postid="22113173"
-          data-share-method="host"
-          data-aspect-ratio="0.84375"
-          data-width="100%"
-        >
-          <a href="https://tenor.com/view/rick-roll-rick-ashley-never-gonna-give-you-up-gif-22113173">
-            Rick Roll Rick Ashley GIF
-          </a>
-          {" from "}
-          <a href="https://tenor.com/search/rick+roll-gifs">Rick Roll GIFs</a>
-        </div>
+      {/* Meme preview area — static placeholder (no third-party embed) */}
+      <div className="relative aspect-[0.84375] w-full overflow-hidden rounded-xl border border-[var(--canvas-border)] bg-gradient-to-br from-stone-100 via-sky-50/60 to-fuchsia-50/50">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.85),transparent_55%)]" />
+        <div className="absolute bottom-3 left-3 right-3 top-1/3 rounded-lg border border-white/60 bg-white/40 shadow-sm backdrop-blur-[2px]" />
+        <p className="absolute bottom-2.5 left-0 right-0 text-center text-[10px] font-medium uppercase tracking-wide text-stone-400">
+          Post preview
+        </p>
       </div>
-      <Script
-        src="https://tenor.com/embed.js"
-        strategy="afterInteractive"
-      />
 
       {/* Caption */}
       <p className="mt-2 text-xs text-[var(--canvas-muted)] line-clamp-2">
-        Rickrolled has been used by <strong>Google</strong>, <strong>YouTube</strong>, <strong>Reddit</strong>, and countless brands.
+        Meme-style posts drive comments and shares for{" "}
+        <strong>Google</strong>, <strong>YouTube</strong>, <strong>Reddit</strong>, and countless brands.
       </p>
 
       {/* Metrics row */}

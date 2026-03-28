@@ -22,6 +22,8 @@ interface FramedSectionProps {
   variant: FramedSectionVariant;
   /** Background variant for SectionBackground (defaults from section variant) */
   backgroundVariant?: SectionBackgroundVariant;
+  /** Homepage hero only: optional cover image under sky tint (see `HERO_BACKGROUND_IMAGE_SRC`). */
+  heroBackgroundSrc?: string | null;
   children: React.ReactNode;
   className?: string;
   /** Section id for anchor links */
@@ -70,6 +72,7 @@ const variantStyles: Record<
 export function FramedSection({
   variant,
   backgroundVariant,
+  heroBackgroundSrc,
   children,
   className,
   id,
@@ -96,7 +99,7 @@ export function FramedSection({
           variant === "footer" && "bg-stone-900/95 text-stone-100"
         )}
       >
-        <SectionBackground variant={bgVariant} />
+        <SectionBackground variant={bgVariant} heroBackgroundSrc={heroBackgroundSrc} />
         <div className="relative z-10">{children}</div>
       </div>
     </section>

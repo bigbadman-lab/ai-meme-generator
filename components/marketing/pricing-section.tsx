@@ -1,53 +1,168 @@
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { FramedSection } from "./framed-section";
 
-const FREE_FEATURES = [
-  "Generate 1 meme per day",
-  "AI selects the best meme template",
-  "Memes tailored to your brand profile",
-  "Caption suggestion included",
-  "Memes adapt to trending topics",
-  "Uses global events and seasonal moments",
-  "Promotion input supported",
-  "Download ready-to-post meme images",
-];
+const STARTER_FEATURES = [
+  "Unlimited meme generation",
+  "Unlimited engagement post generation",
+  "Unlimited content creation for 7 days",
+  "No restrictions",
+  "No monthly commitment",
+] as const;
 
 const PRO_FEATURES = [
   "Unlimited meme generation",
-  "AI automatically chooses viral meme formats",
-  "Memes tailored to your brand and audience",
-  "Caption suggestions included",
-  "Automatically adapts to trending topics",
-  "Uses global events and internet culture",
-  "Add promotions, deals or launches",
-  "Priority access to new meme templates",
-  "Faster generation speeds",
-  "Ideal for daily social media posting",
-];
+  "Unlimited engagement post generation",
+  "Unlimited ongoing access",
+  "No restrictions",
+  "Monthly subscription",
+] as const;
 
 const PLANS = [
   {
-    name: "Free",
-    price: "£0",
-    period: "",
-    subtext: "1 meme per day",
-    features: FREE_FEATURES,
-    cta: "Get Started Free",
+    id: "starter_pack",
+    name: "Starter Pack",
+    badge: "Best place to start",
+    price: "£10",
+    billingLabel: "One-off payment",
+    accessLine: "Unlimited access for 7 days",
+    tagline: "7 days. Unlimited access. No commitment.",
+    description:
+      "Perfect for one-off campaigns, testing Mimly, and building content fast without a monthly commitment.",
+    features: STARTER_FEATURES,
+    cta: "Get 7 days access",
     href: "/onboarding",
-    featured: false,
+    emphasis: "hero" as const,
   },
   {
+    id: "pro",
     name: "Pro",
-    price: "£19",
-    period: "/ month",
-    subtext: "Unlimited meme generation",
+    badge: null as string | null,
+    price: "£29.99",
+    billingLabel: "Per month",
+    accessLine: "Unlimited monthly access",
+    tagline: "For consistent content and ongoing growth",
+    description:
+      "Built for ongoing content creation, regular posting, and brands that want consistent organic growth.",
     features: PRO_FEATURES,
-    cta: "Upgrade to Pro",
+    cta: "Go Pro",
     href: "/onboarding",
-    featured: true,
-    badge: "Most Popular",
+    emphasis: "standard" as const,
   },
-];
+] as const;
+
+export function PricingMarketingBlock() {
+  return (
+    <>
+      <div className="mx-auto max-w-2xl text-center">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
+          Pricing
+        </p>
+        <h2
+          id="pricing-title"
+          className="mt-4 text-3xl font-bold tracking-tight text-stone-900 md:text-5xl"
+        >
+          Two ways to create
+          <br />
+          with Mimly
+        </h2>
+        <p className="marketing-copy mx-auto mt-4 max-w-xl text-center text-stone-600 md:text-[17px]">
+          Unlimited memes, engagement posts, and social content—choose a 7-day sprint or go monthly.
+        </p>
+      </div>
+
+      <div className="mx-auto mt-12 grid max-w-5xl gap-6 md:grid-cols-2 md:gap-8">
+        {PLANS.map((plan) => {
+          const isHero = plan.emphasis === "hero";
+          return (
+            <article
+              key={plan.id}
+              className={`relative flex h-full flex-col overflow-hidden rounded-[2rem] p-6 sm:p-8 ${
+                isHero
+                  ? "border-2 border-amber-200/90 bg-gradient-to-b from-white via-amber-50/50 to-white text-stone-900 shadow-[0_24px_60px_rgba(245,158,11,0.12)] ring-1 ring-amber-100/80 md:shadow-[0_28px_70px_rgba(245,158,11,0.14)]"
+                  : "border border-stone-200/90 bg-white/95 text-stone-900 shadow-[0_18px_44px_rgba(15,23,42,0.07)] ring-1 ring-stone-200/60"
+              }`}
+            >
+              {isHero ? (
+                <>
+                  <div
+                    className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-amber-200/25 blur-3xl"
+                    aria-hidden
+                  />
+                  <div
+                    className="pointer-events-none absolute bottom-0 left-8 h-28 w-28 rounded-full bg-amber-100/30 blur-2xl"
+                    aria-hidden
+                  />
+                </>
+              ) : null}
+
+              <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-2xl font-semibold tracking-tight text-stone-900 sm:text-3xl">
+                    {plan.name}
+                  </h3>
+                  <p className={`mt-2 text-sm font-medium ${isHero ? "text-amber-900/90" : "text-stone-600"}`}>
+                    {plan.tagline}
+                  </p>
+                </div>
+                {plan.badge ? (
+                  <span
+                    className={`inline-flex shrink-0 items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${
+                      isHero
+                        ? "border border-amber-300/80 bg-gradient-to-r from-amber-100 to-amber-50 text-amber-950 shadow-sm"
+                        : ""
+                    }`}
+                  >
+                    {plan.badge}
+                  </span>
+                ) : null}
+              </div>
+
+              <p className="relative z-10 mt-5 text-sm leading-relaxed text-stone-600">{plan.description}</p>
+
+              <div className="relative z-10 mt-8 flex flex-wrap items-end gap-1">
+                <span className="text-5xl font-semibold tracking-tight text-stone-900 sm:text-[3.25rem]">
+                  {plan.price}
+                </span>
+              </div>
+              <p className="relative z-10 mt-1 text-sm font-medium text-stone-700">{plan.billingLabel}</p>
+              <p className={`relative z-10 mt-2 text-sm ${isHero ? "font-semibold text-amber-950/90" : "font-medium text-stone-700"}`}>
+                {plan.accessLine}
+              </p>
+
+              <Link
+                href={plan.href}
+                className={`relative z-10 cta-funky mt-8 inline-flex w-full items-center justify-center rounded-full px-5 py-3.5 text-center text-sm font-semibold shadow-sm transition-colors font-display sm:w-auto ${
+                  isHero
+                    ? "bg-stone-900 !text-white hover:bg-stone-800"
+                    : "border border-stone-200 bg-white !text-stone-900 hover:bg-stone-50"
+                }`}
+              >
+                {plan.cta}
+              </Link>
+
+              <ul
+                className={`relative z-10 mt-8 flex flex-col gap-3 border-t pt-6 ${
+                  isHero ? "border-amber-200/60" : "border-stone-200"
+                }`}
+              >
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2.5 text-sm leading-relaxed text-stone-700">
+                    <Check
+                      className={`mt-0.5 h-4 w-4 shrink-0 ${isHero ? "text-amber-700" : "text-stone-500"}`}
+                      aria-hidden
+                    />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          );
+        })}
+      </div>
+    </>
+  );
+}
 
 export function PricingSection() {
   return (
@@ -55,108 +170,10 @@ export function PricingSection() {
       variant="hero"
       backgroundVariant="pricing"
       id="pricing-heading"
-      aria-labelledby="pricing-heading"
+      aria-labelledby="pricing-title"
       className="w-full"
     >
-      <div className="mx-auto max-w-2xl text-center">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
-          Pricing
-        </p>
-        <h2
-          id="pricing-heading"
-          className="mt-4 text-3xl font-bold tracking-tight text-stone-900 md:text-5xl"
-        >
-          Your pace, your plan
-        </h2>
-        <p className="marketing-copy mx-auto mt-4 max-w-lg text-center">
-          Start with one meme a day, then upgrade when Mimly becomes part of
-          your daily social workflow.
-        </p>
-      </div>
-
-      <div className="mx-auto mt-12 grid max-w-4xl gap-6 md:grid-cols-2">
-        {PLANS.map((plan) => (
-          <article
-            key={plan.name}
-            className={`relative flex h-full flex-col overflow-hidden p-6 md:p-8 ${
-              plan.featured
-                ? "rounded-[2rem] border border-amber-300/20 bg-black text-white shadow-[0_24px_50px_rgba(0,0,0,0.14)]"
-                : "rounded-[2rem] border border-stone-200/80 bg-white/95 text-stone-900 shadow-[0_18px_40px_rgba(0,0,0,0.06)]"
-            }`}
-          >
-            {plan.featured && (
-              <>
-                <div
-                  className="pointer-events-none absolute -right-14 -top-14 h-40 w-40 rounded-full bg-amber-300/18 blur-3xl"
-                  aria-hidden
-                />
-                <div
-                  className="pointer-events-none absolute bottom-0 left-10 h-24 w-24 rounded-full bg-orange-300/10 blur-3xl"
-                  aria-hidden
-                />
-              </>
-            )}
-
-            <div className="relative z-10 flex items-center justify-between gap-2">
-              <h3 className={`text-3xl font-semibold ${plan.featured ? "text-white" : "text-stone-900"}`}>
-                {plan.name}
-              </h3>
-              {plan.badge && (
-                <span className="inline-flex items-center rounded-full border border-amber-200/70 bg-gradient-to-r from-amber-100 to-yellow-50 px-3 py-1 text-[11px] font-medium text-stone-900 shadow-[0_8px_20px_rgba(251,191,36,0.18)]">
-                  {plan.badge}
-                </span>
-              )}
-            </div>
-
-            <p className={`relative z-10 mt-4 max-w-sm text-lg leading-snug ${plan.featured ? "text-stone-200" : "text-stone-700"}`}>
-              {plan.featured
-                ? "For brands that want to publish consistently and move faster with every meme."
-                : "Full access to the essentials if you want to use Mimly a few times each week."}
-            </p>
-
-            <div className="relative z-10 mt-10 flex flex-wrap items-end gap-1">
-              <span className={`text-5xl font-semibold tracking-tight ${plan.featured ? "text-white" : "text-stone-900"}`}>
-                {plan.price}
-              </span>
-              {plan.period && (
-                <span className={`pb-1 text-lg ${plan.featured ? "text-stone-300" : "text-stone-500"}`}>{plan.period}</span>
-              )}
-              {!plan.period && (
-                <span className="pb-1 text-lg text-stone-500">/ month</span>
-              )}
-            </div>
-            {plan.subtext && (
-              <p className={`relative z-10 mt-2 text-sm ${plan.featured ? "text-stone-400" : "text-stone-500"}`}>{plan.subtext}</p>
-            )}
-
-            <Link
-              href={plan.href}
-              className={`relative z-10 cta-funky mt-8 inline-flex w-fit items-center justify-center rounded-full px-5 py-3 text-sm font-medium shadow-sm transition-colors font-display ${
-                plan.featured
-                  ? "bg-white text-stone-900 hover:bg-stone-100"
-                  : "bg-stone-900 !text-white hover:bg-stone-800"
-              }`}
-            >
-              {plan.cta}
-            </Link>
-
-            <ul className={`relative z-10 mt-8 flex flex-col gap-2.5 border-t pt-6 ${plan.featured ? "border-white/10" : "border-stone-200"}`}>
-              {plan.features.map((feature) => (
-                <li
-                  key={feature}
-                  className={`flex items-start gap-2 text-sm leading-relaxed ${plan.featured ? "text-stone-300" : "text-stone-700"}`}
-                >
-                  <span
-                    className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${plan.featured ? "bg-stone-400" : "bg-stone-400"}`}
-                    aria-hidden
-                  />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
-          </article>
-        ))}
-      </div>
+      <PricingMarketingBlock />
     </FramedSection>
   );
 }

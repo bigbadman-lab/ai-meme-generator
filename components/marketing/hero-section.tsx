@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { FramedSection } from "./framed-section";
 import { HeroNav } from "./hero-nav";
-import { EngagementCard } from "./engagement-card";
 import { submitHomepagePrompt } from "@/lib/actions/workspace";
+import { HERO_BACKGROUND_IMAGE_SRC } from "@/lib/marketing/hero-background";
 
 const COUNT_START = 24;
 const COUNT_DURATION_MS = 2500;
@@ -130,7 +130,13 @@ export function HeroSection() {
 
   return (
     <div className={cn("w-full", navFixed && "relative z-[100]")}>
-      <FramedSection variant="hero" id="hero" aria-labelledby="hero-heading" className="w-full">
+      <FramedSection
+        variant="hero"
+        id="hero"
+        aria-labelledby="hero-heading"
+        className="w-full"
+        heroBackgroundSrc={HERO_BACKGROUND_IMAGE_SRC}
+      >
         <div className="flex min-h-[70vh] flex-col items-center gap-8 md:gap-12">
           {/* Nav inside hero container */}
           <div className="w-full">
@@ -142,19 +148,16 @@ export function HeroSection() {
           <div className="relative mt-12 sm:mt-16 md:mt-20">
             <h1
               id="hero-heading"
-              className="text-4xl font-bold tracking-tight leading-tight text-stone-900 sm:text-5xl md:text-6xl"
+              className="mx-auto max-w-4xl text-pretty text-4xl font-bold tracking-tight leading-tight text-stone-900 sm:text-5xl md:text-6xl"
             >
-              <span className="hero-word-memes inline-block">Memes</span> help brands
+              AI{" "}
+              <span className="hero-h1-meme-duotone">meme</span>{" "}
+              generator
               <br />
-              <span className="hero-word-grow inline-block">grow</span>{" "}
-              <span className="hero-word-online inline-block">online.</span>
+              for brands on social.
             </h1>
             <p className="marketing-copy mx-auto mt-5 max-w-xl text-pretty leading-relaxed">
-              Mimly is an{" "}
-              <span className="inline-block rounded-md bg-sky-200/70 px-1.5 py-0.5 font-medium text-stone-900 ring-1 ring-sky-300/60 mx-0.5 my-0.5">
-                AI meme generator
-              </span>
-              {" "}that turns simple prompts into context-aware memes and slideshows,
+              Mimly turns simple prompts into context-aware memes and engagement posts,
               ready for social media.
             </p>
             {/* <div className="mt-5 flex items-center justify-center">
@@ -469,10 +472,6 @@ export function HeroSection() {
             {promptError ? (
               <p className="mt-2 text-center text-sm text-rose-600">{promptError}</p>
             ) : null}
-          </div>
-
-          <div className="mt-6 flex shrink-0 justify-center sm:mt-8">
-            <EngagementCard />
           </div>
         </div>
       </div>

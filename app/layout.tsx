@@ -1,6 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Courier_Prime, Fraunces, Inter } from "next/font/google";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -15,6 +15,13 @@ const inter = Inter({
   variable: "--font-sans",
 });
 
+const courierPrime = Courier_Prime({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-courier-prime",
+  weight: ["400", "700"],
+});
+
 export const metadata: Metadata = {
   title: "Meme Builder",
   description: "AI meme generator",
@@ -24,7 +31,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
+    <html
+      lang="en"
+      className={`${fraunces.variable} ${inter.variable} ${courierPrime.variable}`}
+    >
       <body>{children}</body>
     </html>
   );

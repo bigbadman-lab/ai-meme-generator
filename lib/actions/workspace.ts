@@ -1,6 +1,6 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { absoluteUrlForSharePath } from "@/lib/share/public-share-url";
 import {
@@ -23,6 +23,12 @@ import {
   type WorkspacePlanCode,
 } from "@/lib/workspace/entitlements";
 import { getOrCreateDefaultWorkspaceForUser } from "@/lib/workspace/default-workspace";
+import { renderEngagementTextMemePng } from "@/renderer/renderEngagementTextMeme";
+import { mapMemeTemplateRowForRender } from "@/lib/memes/map-meme-template-row-for-render";
+import {
+  coerceEngagementVisualStyle,
+  type EngagementVisualStyle,
+} from "@/lib/memes/engagement-style";
 
 type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
 type HomepageSubmitOptions = {
@@ -525,6 +531,188 @@ function parseStorageObjectFromPublicUrl(
   return { bucket, objectPath };
 }
 
+export async function updateWorkspaceEngagementOutputStyle(
+  workspaceId: string,
+  generatedMemeId: string,
+  style: EngagementVisualStyle
+): Promise<{
+  error: string | null;
+  image_url?: string | null;
+  variant_metadata?: Record<string, unknown> | null;
+}> {
+  const normalizedId = String(generatedMemeId ?? "").trim();
+  if (!normalizedId) return { error: "Invalid output." };
+
+  const loaded = await loadAccessibleWorkspace(workspaceId);
+  if (!loaded.workspace || !loaded.admin) {
+    return { error: loaded.error ?? "Workspace not found." };
+  }
+  const { admin } = loaded as {
+    admin: ReturnType<typeof createWorkspaceAdminClient>;
+  };
+
+  const { data: workspaceJobs } = await admin
+    .schema("public")
+    .from("generation_jobs")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .limit(500);
+  const workspaceJobIds = (workspaceJobs ?? [])
+    .map((job: { id?: unknown }) => String(job.id ?? "").trim())
+    .filter(Boolean);
+  if (workspaceJobIds.length === 0) {
+    return { error: "Output not found in this workspace." };
+  }
+
+  const { data: mappedOutput } = await admin
+    .schema("public")
+    .from("generation_job_outputs")
+    .select("generated_meme_id")
+    .eq("generated_meme_id", normalizedId)
+    .in("generation_job_id", workspaceJobIds)
+    .limit(1)
+    .maybeSingle();
+  if (!mappedOutput?.generated_meme_id) {
+    return { error: "Output not found in this workspace." };
+  }
+
+  const { data: memeRow, error: memeError } = await admin
+    .schema("public")
+    .from("generated_memes")
+    .select("id, template_id, top_text, bottom_text, variant_metadata, image_url")
+    .eq("id", normalizedId)
+    .maybeSingle();
+
+  if (memeError || !memeRow?.id) {
+    return { error: memeError?.message ?? "Output no longer exists." };
+  }
+
+  const meme = memeRow as {
+    template_id?: unknown;
+    top_text?: unknown;
+    bottom_text?: unknown;
+    variant_metadata?: unknown;
+    image_url?: unknown;
+  };
+
+  const templateId = String(meme.template_id ?? "").trim();
+  if (!templateId) return { error: "Missing template for this output." };
+
+  const { data: templateRow, error: templateError } = await admin
+    .schema("public")
+    .from("meme_templates")
+    .select("*")
+    .eq("template_id", templateId)
+    .maybeSingle();
+
+  if (templateError || !templateRow) {
+    return { error: templateError?.message ?? "Template not found." };
+  }
+
+  const t = templateRow as Record<string, unknown>;
+  if (String(t.template_family ?? "").trim() !== "engagement_text") {
+    return { error: "This output is not an engagement post." };
+  }
+
+  const meta =
+    meme.variant_metadata && typeof meme.variant_metadata === "object"
+      ? ({ ...(meme.variant_metadata as Record<string, unknown>) } as Record<
+          string,
+          unknown
+        >)
+      : {};
+
+  const layoutKey = String(t.text_layout_type ?? "")
+    .trim()
+    .toLowerCase();
+  const namesRaw = meta.engagement_names;
+  const names = Array.isArray(namesRaw)
+    ? namesRaw.map((n) => String(n ?? "").trim()).filter(Boolean)
+    : undefined;
+
+  if (layoutKey === "birthday_names_list") {
+    if (!names || names.length !== 24) {
+      return { error: "Birthday engagement output is missing name data." };
+    }
+  }
+
+  const template = mapMemeTemplateRowForRender(t);
+  const engagedStyle = coerceEngagementVisualStyle(style);
+
+  let png: Buffer;
+  try {
+    png = await renderEngagementTextMemePng({
+      template,
+      keyword: String(meme.top_text ?? ""),
+      topText: String(meme.top_text ?? ""),
+      bottomText:
+        meme.bottom_text == null || meme.bottom_text === ""
+          ? null
+          : String(meme.bottom_text),
+      names: layoutKey === "birthday_names_list" ? names : undefined,
+      engagementStyle: engagedStyle,
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Render failed";
+    return { error: message };
+  }
+
+  const generatedMemeBucket =
+    process.env.MEME_GENERATED_MEMES_BUCKET ?? "generated-memes";
+  const objectPath = `generated_memes/${workspaceId}/${templateId}/${randomUUID()}.png`;
+
+  const oldUrl = String(meme.image_url ?? "").trim();
+  const oldObject = parseStorageObjectFromPublicUrl(oldUrl);
+
+  const { error: uploadError } = await admin.storage
+    .from(generatedMemeBucket)
+    .upload(objectPath, png, {
+      contentType: "image/png",
+      upsert: true,
+    });
+
+  if (uploadError) {
+    return { error: uploadError.message ?? "Upload failed." };
+  }
+
+  const { data: publicRef } = admin.storage
+    .from(generatedMemeBucket)
+    .getPublicUrl(objectPath);
+  const publicUrl = publicRef.publicUrl ?? null;
+  if (!publicUrl) {
+    return { error: "Could not resolve public URL for upload." };
+  }
+
+  const nextMeta: Record<string, unknown> = {
+    ...meta,
+    engagement_style: engagedStyle,
+    content_template_family: "engagement_text",
+  };
+
+  const { error: updateError } = await admin
+    .schema("public")
+    .from("generated_memes")
+    .update({
+      image_url: publicUrl,
+      variant_metadata: nextMeta as Json,
+    })
+    .eq("id", normalizedId);
+
+  if (updateError) {
+    return { error: updateError.message ?? "Failed to update output." };
+  }
+
+  if (oldObject) {
+    await admin.storage.from(oldObject.bucket).remove([oldObject.objectPath]);
+  }
+
+  return {
+    error: null,
+    image_url: publicUrl,
+    variant_metadata: nextMeta,
+  };
+}
+
 export async function deleteWorkspaceOutput(
   workspaceId: string,
   outputId: string
@@ -946,6 +1134,7 @@ export async function sendWorkspaceMessage(
         prompt: resolvedPrompt,
         output_format: resolvedOutputFormat,
         requested_variant_count: requestedVariantCount,
+        template_family_preference: resolvedTemplateFamilyPreference,
       } as Json;
 
       const { data: existingPending } = await admin

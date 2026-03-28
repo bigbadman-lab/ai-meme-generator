@@ -22,6 +22,7 @@ import {
   deriveWorkspaceFamilyTemplateHistory,
   selectTemplatesFromWorkspaceFamilyCycle,
 } from "@/lib/workspace/template-cycle";
+import { normalizeFinalMemeText } from "@/lib/memes/sanitize-meme-text";
 
 const TITLE_MAX_CHARS = 45;
 const PROMOTION_MAX_CHARS = 280;
@@ -358,6 +359,7 @@ Top-level fields:
 
 === RENDER SAFETY (MUST PASS) ===
 Each slide.text must be single-line JSON text (no newline characters).
+Each slide.text must not end with a trailing comma.
 layout_variant rules:
 - layout_a = shorter, punchier phrasing
 - layout_b = can carry slightly more words, still skimmable and concise
@@ -797,10 +799,16 @@ export async function runVerticalSlideshowGeneration(params: {
     const slideMeta: SlideshowVariantMetadata["slides"] = [];
     let firstPublicUrl: string | null = null;
     const usedSlideshowAssetIds = new Set<string>();
+    let firstSlideSanitizedText = title;
 
     try {
       for (let si = 0; si < payload.slides.length; si++) {
         const slide = payload.slides[si];
+        const slideDisplayText = normalizeFinalMemeText(slide.text) ?? "";
+        if (si === 0) {
+          firstSlideSanitizedText =
+            slideDisplayText.trim() !== "" ? slideDisplayText : title;
+        }
         const asset = resolveSlideAsset(
           slide.image_selection,
           slide.layout_variant,
@@ -820,7 +828,7 @@ export async function runVerticalSlideshowGeneration(params: {
 
         const png = await renderVerticalSlideshowSlidePng({
           backgroundBuffer: bg,
-          text: slide.text,
+          text: slideDisplayText,
           layout_variant: slide.layout_variant,
           style,
         });
@@ -843,7 +851,7 @@ export async function runVerticalSlideshowGeneration(params: {
         slideMeta.push({
           index: si,
           role: slide.role,
-          text: slide.text,
+          text: slideDisplayText,
           layout_variant: slide.layout_variant,
           image_asset_id: asset.id,
           image_storage_path: asset.storage_path,
@@ -883,7 +891,7 @@ export async function runVerticalSlideshowGeneration(params: {
       idea_group_id: ideaGroupId,
       title,
       format: template.template_name,
-      top_text: payload.slides[0]?.text ?? title,
+      top_text: firstSlideSanitizedText,
       bottom_text: null as string | null,
       post_caption: null,
       image_url: firstPublicUrl,

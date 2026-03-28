@@ -3,10 +3,14 @@
 import { useRef, useState } from "react";
 import {
   createOrGetShareLinkForWorkspaceOutput,
+  updateWorkspaceEngagementOutputStyle,
   type WorkspaceJob,
   type WorkspaceOutput,
 } from "@/lib/actions/workspace";
 import { getVerticalSlideshowImageUrls } from "@/lib/share/vertical-slideshow-urls";
+import { EngagementStyleToggle } from "@/components/workspace/engagement-style-toggle";
+import { coerceEngagementVisualStyle } from "@/lib/memes/engagement-style";
+import { isWorkspaceEngagementOutput } from "@/lib/workspace/is-engagement-output";
 import { BlockedAuthCard } from "@/components/workspace/blocked-auth-card";
 import { BlockedPaymentCard } from "@/components/workspace/blocked-payment-card";
 import canvas2Background from "@/assets/canvas2.jpg";
@@ -50,6 +54,7 @@ export function OutputPanel({
   workspaceId,
   pinnedCount,
   gateState,
+  onEngagementOutputUpdated,
   onTogglePin,
   onDeleteOutput,
   onPlanUnlocked,
@@ -59,6 +64,13 @@ export function OutputPanel({
   workspaceId: string;
   pinnedCount: number;
   gateState: "anonymous_blocked" | "authenticated_plan_required" | "unlocked";
+  onEngagementOutputUpdated?: (
+    outputId: string,
+    patch: {
+      image_url: string | null;
+      variant_metadata: Record<string, unknown> | null;
+    }
+  ) => void;
   onTogglePin?: (outputId: string, shouldPin: boolean) => void | Promise<void>;
   onDeleteOutput?: (outputId: string) => void | Promise<void>;
   onPlanUnlocked?: () => void | Promise<void>;
@@ -75,6 +87,9 @@ export function OutputPanel({
     url: string;
     mediaType: "video" | "image";
   } | null>(null);
+  const [engagementStyleBusyId, setEngagementStyleBusyId] = useState<
+    string | null
+  >(null);
 
   async function handleShareOutput(output: WorkspaceOutput) {
     const id = output.id;
@@ -225,7 +240,7 @@ export function OutputPanel({
           backgroundPosition: "center",
         }}
       >
-        <div className="relative w-full max-w-xl">
+        <div className="relative w-full max-w-4xl px-1 sm:px-0">
           <BlockedPaymentCard workspaceId={workspaceId} onUnlocked={onPlanUnlocked} />
         </div>
       </div>
@@ -276,6 +291,18 @@ export function OutputPanel({
           const slideshowSlideUrls = slideshowUrlsForOutput(output);
           const isSlideshow = slideshowSlideUrls.length > 0;
           const mediaType = url ? mediaTypeFromUrl(url) : "image";
+          const meta =
+            output.variant_metadata && typeof output.variant_metadata === "object"
+              ? (output.variant_metadata as Record<string, unknown>)
+              : null;
+          const isEngagementCard =
+            !isSlideshow &&
+            Boolean(url) &&
+            mediaType === "image" &&
+            isWorkspaceEngagementOutput(meta);
+          const engagementVisualStyle = coerceEngagementVisualStyle(
+            meta?.engagement_style
+          );
           const shareState = shareByOutput[output.id] ?? { kind: "idle" as const };
           const shareLabel =
             shareState.kind === "loading"
@@ -397,7 +424,12 @@ export function OutputPanel({
                         className="h-full w-full"
                         title="Open fullscreen"
                       >
-                        <img src={url} alt={output.title ?? "Generated output"} className="h-full w-full object-cover transition hover:scale-[1.01]" />
+                        <img
+                          key={url}
+                          src={url}
+                          alt={output.title ?? "Generated output"}
+                          className="h-full w-full object-cover transition hover:scale-[1.01]"
+                        />
                       </button>
                     )
                   ) : (
@@ -408,6 +440,36 @@ export function OutputPanel({
                 </div>
               )}
               <div className="p-3.5">
+                {isEngagementCard ? (
+                  <div className="mb-3 rounded-xl border border-stone-200/90 bg-stone-50/90 px-2.5 py-2">
+                    <EngagementStyleToggle
+                      compact
+                      className="max-w-full"
+                      value={engagementVisualStyle}
+                      disabled={engagementStyleBusyId === output.id}
+                      onChange={async (next) => {
+                        if (next === engagementVisualStyle) return;
+                        if (!onEngagementOutputUpdated) return;
+                        setEngagementStyleBusyId(output.id);
+                        const result = await updateWorkspaceEngagementOutputStyle(
+                          workspaceId,
+                          output.id,
+                          next
+                        );
+                        setEngagementStyleBusyId(null);
+                        if (result.error) {
+                          setNotice(result.error);
+                          setTimeout(() => setNotice(null), 2600);
+                          return;
+                        }
+                        onEngagementOutputUpdated(output.id, {
+                          image_url: result.image_url ?? null,
+                          variant_metadata: result.variant_metadata ?? null,
+                        });
+                      }}
+                    />
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   {isSlideshow ? (
                     <button

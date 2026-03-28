@@ -26,7 +26,7 @@ export function PromptComposer({
           setValue("");
         });
       }}
-      className="mt-1"
+      className="mt-0"
     >
       <div
         className={`rounded-[24px] border px-3 py-2 shadow-[0_8px_24px_rgba(20,20,20,0.08)] transition focus-within:border-sky-300 focus-within:ring-2 focus-within:ring-inset focus-within:ring-sky-200/70 ${

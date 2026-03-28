@@ -1,6 +1,6 @@
 import { PageShell } from "@/components/marketing/page-shell";
 import { HeroSection } from "@/components/marketing/hero-section";
-import { GallerySection } from "@/components/marketing/gallery-section";
+import { OrganicStatsSection } from "@/components/marketing/organic-stats-section";
 import { ShowcaseBentoSection } from "@/components/marketing/showcase-bento-section";
 import { FounderSection } from "@/components/marketing/founder-section";
 import { PricingSection } from "@/components/marketing/pricing-section";
@@ -10,7 +10,7 @@ import { FooterSection } from "@/components/marketing/footer-section";
 /**
  * Homepage sections (order must be preserved for SEO and structure):
  * 1. Hero
- * 2. Gallery
+ * 2. Organic stats
  * 3. Showcase
  * 4. Founder
  * 5. Pricing
@@ -21,7 +21,7 @@ export default function MarketingPage() {
   return (
     <PageShell>
       <HeroSection />
-      <GallerySection />
+      <OrganicStatsSection />
       <ShowcaseBentoSection />
       <FounderSection />
       <PricingSection />
